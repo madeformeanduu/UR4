@@ -2385,6 +2385,1891 @@ end)
 
 _48:OnUnload(function() _G.destroy_weather() end)
 
+-- pets modules <3 :3
+if _G.Puppy and _G.Puppy.Unload then
+    pcall(_G.Puppy.Unload)
+end
+
+PP_Config = {
+    Enabled    = false,
+    Pet        = "Dog",
+    Mode       = "Follow",
+    Scale      = 1,
+    FollowDist = 7,
+    Playful    = 0.6,
+    LookAtYou  = true,
+    Pettable   = true,
+    AutoSit    = true,
+    AutoPlay   = true,
+    MimicJump  = true,
+    Coat       = Color3.fromRGB(214, 170, 110),
+    Light      = Color3.fromRGB(246, 232, 208),
+    Dark       = Color3.fromRGB(120, 78, 44),
+}
+
+UIS = game:GetService("UserInputService")
+Players = game:GetService("Players")
+V = Vector3.new
+V0 = Vector3.new(0, 0, 0)
+RGB = Color3.fromRGB
+
+PP_SPECIES = {}
+
+PP_SPECIES.Dog = {
+    scale = 1,
+    colors = { coat = RGB(214, 170, 110), light = RGB(246, 232, 208), dark = RGB(120, 78, 44) },
+    body = { size = V(0.9, 0.8, 1.5) },
+    chest = { d = 1.0, y = 0.03, z = -0.55 },
+    rump = { d = 0.95, y = 0, z = 0.5 },
+    bib = { d = 0.55, y = -0.12, z = -0.9 },
+    legs = {
+        F = { x = 0.3, y = -0.3, z = -0.55, U = 0.44, L = 0.44, uW = 0.26, uD = 0.3, lW = 0.22, lD = 0.24, paw = V(0.28, 0.12, 0.38), poy = 0.05, pz = 0.06, lower = 'coat', pawc = 'light' },
+        B = { x = 0.3, y = -0.3, z = 0.55, U = 0.44, L = 0.44, uW = 0.3, uD = 0.32, lW = 0.22, lD = 0.24, paw = V(0.28, 0.12, 0.38), poy = 0.05, pz = 0.06, lower = 'coat', pawc = 'light' },
+    },
+    head = {
+        d = 0.95, hj = V(0, 0.3, -0.8), hc = V(0, 0.22, -0.28),
+        snout = { size = V(0.46, 0.36, 0.5), jp = V(0, -0.12, -0.38), cc = V(0, 0, -0.18), col = 'light' },
+        nose = { d = 0.2, jp = V(0, 0.09, -0.27), col = 'nose' },
+        jaw = { size = V(0.38, 0.12, 0.42), jp = V(0, -0.3, -0.28), cc = V(0, -0.04, -0.2), col = 'light' },
+        eye = { d = 0.16, x = 0.2, y = 0.1, z = -0.41, col = 'black' },
+        ear = { x = 0.3, y = 0.36, z = -0.05, tilt = 0.45, dir = -1, cx = 0.06, steps = { { size = V(0.1, 0.42, 0.3), col = 'dark' } } },
+    },
+    tail = { base = V(0, 0.12, 0.72), segs = { { size = V(0.16, 0.16, 0.46), col = 'coat' }, { size = V(0.13, 0.13, 0.4), col = 'light' } }, curl = -0.35, lag = 0.9, bob = 0 },
+    anim = { walk = 5.5, run = 14, hopVy = 15.5, play = 'bow', bowT = 1.1, pant = true, sitPitch = 0.55, sitSpread = 0.1,
+             headLevel = 0.7, breathHz = 2.4, earGain = 1, earRun = -0.3, earHz = 4.5, earZeta = 0.3, sitChance = 0.3,
+             airPitch = 0.02, happy = { amp = 0.9, hz = 6.5 } },
+    pose = {
+        Idle = { tail = -0.9, amp = 0.16, hz = 1.6 },
+        Walk = { tail = -0.7, amp = 0.28, hz = 2.6 },
+        Run  = { tail = -0.45, amp = 0.4, hz = 3.6, hMul = 0.96 },
+        Sit  = { amp = 0.4, hz = 2.4 },
+        Bow  = { tail = -1.0, amp = 0.9, hz = 6.5, hMul = 0.78, pitch = -0.35, stretch = 0.35, pant = 1 },
+        Hop  = { tail = -1.0, amp = 0.7, hz = 5, pant = 0.8 },
+    },
+}
+
+PP_SPECIES.Cat = {
+    scale = 0.85,
+    colors = { coat = RGB(236, 160, 72), light = RGB(250, 240, 225), dark = RGB(150, 90, 40) },
+    body = { size = V(0.66, 0.6, 1.3) },
+    chest = { d = 0.78, y = 0.02, z = -0.5 },
+    rump = { d = 0.78, y = 0, z = 0.5 },
+    bib = { d = 0.4, y = -0.1, z = -0.8 },
+    legs = {
+        F = { x = 0.22, y = -0.25, z = -0.45, U = 0.38, L = 0.38, uW = 0.17, uD = 0.2, lW = 0.14, lD = 0.16, paw = V(0.2, 0.1, 0.28), poy = 0.04, pz = 0.05, lower = 'coat', pawc = 'light' },
+        B = { x = 0.22, y = -0.25, z = 0.45, U = 0.38, L = 0.38, uW = 0.2, uD = 0.24, lW = 0.14, lD = 0.16, paw = V(0.2, 0.1, 0.28), poy = 0.04, pz = 0.05, lower = 'coat', pawc = 'light' },
+    },
+    head = {
+        d = 0.8, hj = V(0, 0.26, -0.68), hc = V(0, 0.18, -0.22),
+        snout = { size = V(0.28, 0.22, 0.24), jp = V(0, -0.1, -0.3), cc = V(0, 0, -0.08), col = 'light' },
+        nose = { d = 0.1, jp = V(0, 0.05, -0.13), col = 'pink' },
+        jaw = { size = V(0.24, 0.08, 0.24), jp = V(0, -0.22, -0.22), cc = V(0, -0.03, -0.1), col = 'light' },
+        eye = { d = 0.17, x = 0.17, y = 0.08, z = -0.33, col = 'green' },
+        ear = { x = 0.2, y = 0.34, z = -0.04, tilt = 0.25, dir = 1, cx = 0,
+                steps = { { size = V(0.17, 0.14, 0.07), col = 'coat' }, { size = V(0.12, 0.1, 0.06), col = 'coat' }, { size = V(0.07, 0.08, 0.05), col = 'dark' } },
+                inner = { size = V(0.1, 0.14, 0.02), y = 0.09 } },
+        whisk = true,
+    },
+    tail = { base = V(0, 0.1, 0.62), segs = { { size = V(0.12, 0.12, 0.4), col = 'coat' }, { size = V(0.11, 0.11, 0.38), col = 'coat' }, { size = V(0.1, 0.1, 0.34), col = 'dark' } }, curl = -0.3, lag = 0.7, bob = 0.15 },
+    anim = { walk = 4.5, run = 15, hopVy = 18, play = 'pounce', bowT = 1.4, pant = false, sitPitch = 0.68, sitSpread = 0.08,
+             headLevel = 0.75, breathHz = 3, earGain = 0.35, earRun = -0.4, earHz = 7, earZeta = 0.45, earSwivel = true, sitChance = 0.5,
+             airPitch = 0.03, happy = { amp = 0.35, hz = 1.4 } },
+    pose = {
+        Idle = { tail = -1.1, amp = 0.28, hz = 0.9 },
+        Walk = { tail = -0.75, amp = 0.32, hz = 1.2 },
+        Run  = { tail = -0.1, amp = 0.15, hz = 2, hMul = 0.9 },
+        Sit  = { amp = 0.25, hz = 0.8 },
+        Bow  = { tail = -0.2, amp = 0.35, hz = 5, hMul = 0.62, pitch = -0.08, stretch = 0 },
+        Hop  = { tail = -0.5, amp = 0.2, hz = 3 },
+    },
+}
+
+PP_SPECIES.Fox = {
+    scale = 0.95,
+    colors = { coat = RGB(224, 112, 40), light = RGB(250, 244, 236), dark = RGB(54, 40, 36) },
+    body = { size = V(0.72, 0.68, 1.45) },
+    chest = { d = 0.82, y = 0.03, z = -0.52 },
+    rump = { d = 0.8, y = 0, z = 0.5 },
+    bib = { d = 0.5, y = -0.1, z = -0.82 },
+    legs = {
+        F = { x = 0.26, y = -0.28, z = -0.52, U = 0.5, L = 0.5, uW = 0.2, uD = 0.24, lW = 0.16, lD = 0.18, paw = V(0.2, 0.1, 0.3), poy = 0.04, pz = 0.06, lower = 'dark', pawc = 'dark' },
+        B = { x = 0.26, y = -0.28, z = 0.52, U = 0.5, L = 0.5, uW = 0.24, uD = 0.28, lW = 0.16, lD = 0.18, paw = V(0.2, 0.1, 0.3), poy = 0.04, pz = 0.06, lower = 'dark', pawc = 'dark' },
+    },
+    head = {
+        d = 0.8, hj = V(0, 0.28, -0.78), hc = V(0, 0.2, -0.25),
+        snout = { size = V(0.3, 0.26, 0.5), jp = V(0, -0.1, -0.34), cc = V(0, 0, -0.2), col = 'light' },
+        nose = { d = 0.12, jp = V(0, 0.06, -0.27), col = 'black' },
+        jaw = { size = V(0.26, 0.08, 0.4), jp = V(0, -0.26, -0.28), cc = V(0, -0.03, -0.18), col = 'light' },
+        eye = { d = 0.13, x = 0.17, y = 0.1, z = -0.34, col = 'amber' },
+        ear = { x = 0.22, y = 0.34, z = -0.02, tilt = 0.15, dir = 1, cx = 0,
+                steps = { { size = V(0.2, 0.2, 0.08), col = 'coat' }, { size = V(0.15, 0.17, 0.07), col = 'coat' }, { size = V(0.09, 0.14, 0.06), col = 'dark' } },
+                inner = { size = V(0.12, 0.2, 0.02), y = 0.11 } },
+    },
+    tail = { base = V(0, 0.1, 0.7), segs = { { size = V(0.3, 0.3, 0.5), col = 'coat' }, { size = V(0.4, 0.4, 0.55), col = 'coat' }, { size = V(0.3, 0.3, 0.4), col = 'light' } }, curl = -0.05, lag = 0.8, bob = 0.1 },
+    anim = { walk = 6, run = 16, hopVy = 17, play = 'pounce', bowT = 1.2, pant = true, sitPitch = 0.6, sitSpread = 0.1,
+             headLevel = 0.7, breathHz = 2.6, earGain = 0.4, earRun = -0.5, earHz = 7, earZeta = 0.45, earSwivel = true, sitChance = 0.3,
+             airPitch = 0.03, happy = { amp = 0.5, hz = 3.5 } },
+    pose = {
+        Idle = { tail = -0.25, amp = 0.12, hz = 0.8 },
+        Walk = { tail = -0.2, amp = 0.15, hz = 1.2 },
+        Run  = { tail = -0.05, amp = 0.08, hz = 2.2, hMul = 0.94 },
+        Sit  = { amp = 0.2, hz = 1 },
+        Bow  = { tail = -0.5, amp = 0.4, hz = 4, hMul = 0.62, pitch = -0.1, stretch = 0, pant = 0.6 },
+        Hop  = { tail = -0.15, amp = 0.3, hz = 3 },
+    },
+}
+
+PP_SPECIES.Bunny = {
+    scale = 0.8,
+    colors = { coat = RGB(200, 190, 180), light = RGB(250, 248, 244), dark = RGB(150, 130, 120) },
+    body = { size = V(0.62, 0.58, 0.78) },
+    chest = { d = 0.7, y = 0.04, z = -0.22 },
+    rump = { d = 0.95, y = 0.06, z = 0.22 },
+    legs = {
+        F = { x = 0.2, y = -0.24, z = -0.28, U = 0.26, L = 0.26, uW = 0.15, uD = 0.17, lW = 0.13, lD = 0.14, paw = V(0.16, 0.09, 0.26), poy = 0.04, pz = 0.06, lower = 'coat', pawc = 'light' },
+        B = { x = 0.28, y = -0.22, z = 0.34, U = 0.44, L = 0.42, uW = 0.22, uD = 0.3, lW = 0.14, lD = 0.16, paw = V(0.2, 0.09, 0.55), poy = 0.04, pz = 0.17, lower = 'coat', pawc = 'light' },
+    },
+    head = {
+        d = 0.62, hj = V(0, 0.2, -0.5), hc = V(0, 0.16, -0.16),
+        snout = { size = V(0.2, 0.18, 0.18), jp = V(0, -0.08, -0.24), cc = V(0, 0, -0.06), col = 'light' },
+        nose = { d = 0.08, jp = V(0, 0.04, -0.1), col = 'pink' },
+        jaw = { size = V(0.16, 0.06, 0.16), jp = V(0, -0.18, -0.2), cc = V(0, -0.02, -0.07), col = 'light' },
+        eye = { d = 0.13, x = 0.16, y = 0.08, z = -0.25, col = 'black' },
+        ear = { x = 0.12, y = 0.27, z = 0.02, tilt = 0.12, dir = 1, cx = 0,
+                steps = { { size = V(0.13, 0.45, 0.05), col = 'coat' }, { size = V(0.12, 0.38, 0.05), col = 'coat' }, { size = V(0.13, 0.13, 0.13), col = 'coat', ball = true } },
+                inner = { size = V(0.07, 0.5, 0.02), y = 0.26 } },
+        whisk = true, teeth = true,
+    },
+    tail = { base = V(0, 0.1, 0.62), segs = { { size = V(0.3, 0.3, 0.3), col = 'light', ball = true } }, curl = 0, lag = 0, bob = 0 },
+    anim = { walk = 4.5, run = 12, hopVy = 14, hopLoco = true, locoVy = { walk = 7, run = 10 }, play = 'binky', bowT = 0, pant = false,
+             sitPitch = 1.0, sitSpread = 0.05, headLevel = 0.8, breathHz = 4, earGain = 0.5, earRun = -0.9, earHz = 7, earZeta = 0.45,
+             noseTwitch = true, sitChance = 0.5, airPitch = 0.025, happy = { amp = 0.1, hz = 3 } },
+    pose = {
+        Idle = { tail = -0.3, amp = 0.05, hz = 1 },
+        Walk = { tail = -0.4, amp = 0.05, hz = 1.5 },
+        Run  = { tail = -0.5, amp = 0.05, hz = 2, hMul = 0.95 },
+        Sit  = { amp = 0.04, hz = 1 },
+        Bow  = { tail = -0.5, amp = 0.1, hz = 3, hMul = 0.78, pitch = -0.2, stretch = 0 },
+        Hop  = { tail = -0.6, amp = 0.1, hz = 3 },
+    },
+}
+
+PP_PETS = { "Dog", "Cat", "Bunny", "Fox" }
+
+-- Constants
+PP_REACH = 0.82
+PP_conns = {}
+PP_S = {}
+PP_model, PP_J, PP_P, PP_HIP = nil, {}, {}, {}
+PP_sp, PP_D, PP_nTail = nil, nil, 0
+PP_SC, PP_builtKey = 1, nil
+PP_dirty = false
+
+PP_pos, PP_yaw, PP_N = nil, 0, Vector3.new(0, 1, 0)
+PP_speed, PP_yawRate, PP_lastSpeed = 0, 0, 0
+PP_vy, PP_air, PP_landed = 0, false, nil
+PP_state, PP_stateT = "Idle", 0
+PP_cmdSit, PP_moving = false, false
+PP_hopPhase, PP_hopT, PP_hops, PP_hopCD = "crouch", 0, 0, 0
+PP_binky, PP_binkyDir, PP_pounce = false, 1, false
+PP_locoT = 0
+PP_happy, PP_heat = 0, 0
+PP_petReq = false
+PP_nextPlay, PP_idleT = 12, 0
+PP_wanderGoal, PP_wanderT, PP_wanderRun = nil, 1, false
+PP_avoidT, PP_avoidDir = 0, 1
+PP_phase, PP_wagPh, PP_breathPh, PP_t = 0, 0, 0, 0
+PP_blinkT, PP_blinkOn = 2, 0
+PP_swT = 0
+PP_lastOwnerJump = 0
+PP_filterT = 0
+
+PP_rp = RaycastParams.new()
+PP_rp.FilterType = Enum.RaycastFilterType.Exclude
+PP_rp.FilterDescendantsInstances = {}
+pcall(function() PP_rp.RespectCanCollide = true end)
+
+function PP_flat(v) return Vector3.new(v.X, 0, v.Z) end
+function PP_angDiff(a, b) return (a - b + math.pi) % (2 * math.pi) - math.pi end
+function PP_approach(x, target, step)
+    if x < target then return math.min(target, x + step) end
+    return math.max(target, x - step)
+end
+
+function PP_smooth(name, target, smoothTime, dt)
+    local s = PP_S[name]
+    if not s then s = { x = target, v = 0 } PP_S[name] = s end
+    local omega = 2 / smoothTime
+    local x = omega * dt
+    local e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x)
+    local change = s.x - target
+    local temp = (s.v + omega * change) * dt
+    s.v = (s.v - omega * temp) * e
+    s.x = target + (change + temp) * e
+    return s.x
+end
+
+function PP_spring(name, target, dt, hz, zeta)
+    local s = PP_S[name]
+    if not s then s = { x = target, v = 0 } PP_S[name] = s end
+    local w = 2 * math.pi * hz
+    local h = dt / 3
+    for _ = 1, 3 do
+        local a = w * w * (target - s.x) - 2 * zeta * w * s.v
+        s.v = s.v + a * h
+        s.x = s.x + s.v * h
+    end
+    return s.x
+end
+
+function PP_minH(sp, pitch)
+    local c, s = math.cos(pitch), math.sin(pitch)
+    local b = sp.body.size
+    local by, bz = b.Y / 2, b.Z / 2
+    local ch, ru = sp.chest, sp.rump
+    local lo = math.min(-by * c + bz * s, -by * c - bz * s,
+        ch.y * c - ch.z * s - ch.d / 2,
+        ru.y * c - ru.z * s - ru.d / 2)
+    return -lo + 0.02
+end
+
+function PP_hipZ(def, pitch)
+    return def.y * math.sin(pitch) + def.z * math.cos(pitch)
+end
+
+function PP_derive(sp)
+    local D = {}
+    local F, B = sp.legs.F, sp.legs.B
+    for _, d in ipairs({ F, B }) do
+        d.ank = d.poy + d.paw.Y / 2
+        d.len = d.U + d.L
+        d.hipH = d.ank + PP_REACH * d.len
+    end
+    local A, Bz = F.y - B.y, B.z - F.z
+    local R = math.sqrt(A * A + Bz * Bz)
+    local delta = math.atan2(A, Bz)
+    local pitch = math.asin(math.clamp((F.hipH - B.hipH) / R, -1, 1)) - delta
+    D.standPitch = pitch
+    D.standH = math.max(F.hipH - (F.y * math.cos(pitch) - F.z * math.sin(pitch)), PP_minH(sp, pitch))
+
+    local sa = sp.anim.sitPitch
+    local b = sp.body.size
+    local cornerY = -(b.Y / 2) * math.cos(sa) - (b.Z / 2) * math.sin(sa)
+    local ballY = sp.rump.y * math.cos(sa) - sp.rump.z * math.sin(sa) - sp.rump.d / 2
+    D.sitH = -math.min(cornerY, ballY) + 0.01
+
+    local amp = math.huge
+    for _, d in ipairs({ F, B }) do
+        amp = math.min(amp, d.len * math.sqrt(math.max(0, 0.9025 - PP_REACH * PP_REACH)))
+    end
+    D.strideMax = amp * 2 * 0.92
+    D.liftH = 0.28 * math.min(F.len, B.len)
+    return D
+end
+
+function PP_destroy()
+    if PP_model then pcall(function() PP_model:Destroy() end) end
+    PP_model, PP_J, PP_P = nil, {}, {}
+end
+
+function PP_build()
+    PP_destroy()
+    PP_dirty = false
+    local cfg = PP_Config
+    local sp = PP_SPECIES[cfg.Pet] or PP_SPECIES.Dog
+    PP_sp = sp
+    PP_D = PP_derive(sp)
+    local SC = cfg.Scale * sp.scale
+    PP_SC = SC
+    PP_builtKey = cfg.Pet .. "|" .. cfg.Scale
+
+    local C = {
+        coat = cfg.Coat, light = cfg.Light, dark = cfg.Dark,
+        pink = RGB(232, 150, 160), nose = RGB(35, 28, 30), black = RGB(24, 18, 18),
+        white = RGB(252, 252, 252), tongue = RGB(232, 108, 128),
+        green = RGB(110, 190, 90), amber = RGB(200, 130, 30),
+    }
+
+    local model = Instance.new("Model")
+    model.Name = "Pet"
+    local J, P = {}, {}
+
+    local function part(name, size, color, ball)
+        local p = Instance.new("Part")
+        p.Name = name
+        if ball then p.Shape = Enum.PartType.Ball end
+        p.Size = size * SC
+        p.Color = color
+        p.Material = Enum.Material.SmoothPlastic
+        p.Anchored = false
+        p.CanCollide = false
+        p.CanTouch = false
+        p.Massless = true
+        p.Parent = model
+        P[name] = p
+        return p
+    end
+    local function joint(name, p0, p1, jp, cc, rot)
+        local m = Instance.new("Motor6D")
+        m.Name = name
+        m.Part0 = P[p0]
+        m.Part1 = P[p1]
+        m.C0 = CFrame.new(jp * SC) * (rot or CFrame.new())
+        m.C1 = CFrame.new(-cc * SC)
+        m.Parent = P[p0]
+        J[name] = m
+        return m
+    end
+    local function fixed(name, parent, size, colKey, jp, cc, ball, rot)
+        part(name, size, C[colKey], ball)
+        return joint(name, parent, name, jp, cc or V0, rot)
+    end
+    local function ball(d) return V(d, d, d) end
+
+    -- body
+    part("Body", sp.body.size, C.coat)
+    P.Body.Anchored = true
+    fixed("Chest", "Body", ball(sp.chest.d), 'coat', V(0, sp.chest.y, sp.chest.z), V0, true)
+    fixed("Rump", "Body", ball(sp.rump.d), 'coat', V(0, sp.rump.y, sp.rump.z), V0, true)
+    if sp.bib then fixed("Bib", "Body", ball(sp.bib.d), 'light', V(0, sp.bib.y, sp.bib.z), V0, true) end
+
+    -- head
+    local H = sp.head
+    part("Head", ball(H.d), C.coat, true)
+    joint("Head", "Body", "Head", H.hj, H.hc)
+    fixed("Snout", "Head", H.snout.size, H.snout.col, H.snout.jp, H.snout.cc)
+    fixed("Nose", "Snout", ball(H.nose.d), H.nose.col, H.nose.jp, V0, true)
+    part("Jaw", H.jaw.size, C[H.jaw.col])
+    joint("Jaw", "Head", "Jaw", H.jaw.jp, H.jaw.cc)
+    if sp.anim.pant then
+        local jz = H.jaw.size.Z
+        fixed("Tongue", "Jaw", V(0.16, 0.04, jz * 0.65), 'tongue', V(0, H.jaw.size.Y / 2, -jz * 0.4), V0)
+        P.Tongue.Transparency = 1
+    end
+    if H.whisk then
+        local sx, sz = H.snout.size.X, H.snout.size.Z
+        for _, side in ipairs({ -1, 1 }) do
+            for _, k in ipairs({ -1, 1 }) do
+                local n = "Whisker" .. (side < 0 and "L" or "R") .. (k < 0 and "1" or "2")
+                fixed(n, "Snout", V(0.3, 0.012, 0.012), 'white', V(side * sx * 0.4, -0.02 + k * 0.035, -sz * 0.3), V(side * 0.15, 0, 0), false, CFrame.Angles(k * 0.12, -side * 0.3, 0))
+            end
+        end
+    end
+    if H.teeth then
+        fixed("Teeth", "Snout", V(0.07, 0.07, 0.025), 'white', V(0, -H.snout.size.Y / 2, -H.snout.size.Z / 2 + 0.01), V(0, -0.02, 0))
+    end
+
+    for _, side in ipairs({ -1, 1 }) do
+        local s = side < 0 and "L" or "R"
+        local E = H.eye
+        part("Eye" .. s, ball(E.d), C[E.col or 'black'], true)
+        joint("Eye" .. s, "Head", "Eye" .. s, V(side * E.x, E.y, E.z), V0)
+        fixed("Glint" .. s, "Eye" .. s, ball(E.d * 0.32), 'white', V(-side * E.d * 0.12, E.d * 0.25, -E.d * 0.43), V0, true)
+        fixed("Lid" .. s, "Head", ball(E.d * 1.18), 'coat', V(side * E.x, E.y, E.z), V0, true)
+        P["Lid" .. s].Transparency = 1
+
+        local e = H.ear
+        local prev, prevH
+        for i, st in ipairs(e.steps) do
+            local nm = (i == 1) and ("Ear" .. s) or ("Ear" .. s .. i)
+            local h = st.size.Y
+            part(nm, st.size, C[st.col], st.ball)
+            if i == 1 then
+                joint(nm, "Head", nm, V(side * e.x, e.y, e.z), V(side * (e.cx or 0), e.dir * h / 2, 0), CFrame.Angles(0, 0, -e.dir * side * e.tilt))
+            else
+                joint(nm, prev, nm, V(0, e.dir * prevH, 0), V(0, e.dir * h / 2, 0))
+            end
+            prev, prevH = nm, h
+        end
+        if e.inner then
+            fixed("EarIn" .. s, "Ear" .. s, e.inner.size, 'pink', V(0, e.dir * e.inner.y, -e.steps[1].size.Z / 2), V(0, 0, -0.005))
+        end
+    end
+
+    local T = sp.tail
+    local prevLen
+    for i, sg in ipairs(T.segs) do
+        local nm = "Tail" .. i
+        local len = sg.size.Z
+        part(nm, sg.size, C[sg.col], sg.ball)
+        if i == 1 then
+            joint(nm, "Body", nm, T.base, V(0, 0, len / 2))
+        else
+            joint(nm, "Tail" .. (i - 1), nm, V(0, 0, prevLen), V(0, 0, len / 2))
+        end
+        prevLen = len
+    end
+    PP_nTail = #T.segs
+
+    local HIP = {}
+    for _, side in ipairs({ -1, 1 }) do
+        for _, row in ipairs({ "F", "B" }) do
+            local d = sp.legs[row]
+            local pre = (side < 0 and "L" or "R") .. row
+            part(pre .. "U", V(d.uW, d.U, d.uD), C.coat)
+            joint(pre .. "Hip", "Body", pre .. "U", V(side * d.x, d.y, d.z), V(0, -d.U / 2, 0))
+            fixed(pre .. "HipCap", pre .. "U", ball(math.max(d.uW, d.uD) * 1.15), 'coat', V0, V0, true)
+            fixed(pre .. "KneeCap", pre .. "U", ball(math.max(d.lW, d.lD) * 1.15), d.lower, V(0, -d.U, 0), V0, true)
+            part(pre .. "D", V(d.lW, d.L, d.lD), C[d.lower])
+            joint(pre .. "Knee", pre .. "U", pre .. "D", V(0, -d.U, 0), V(0, -d.L / 2, 0))
+            fixed(pre .. "AnkleCap", pre .. "D", ball(math.max(d.lW, d.lD) * 1.05), d.pawc, V(0, -d.L, 0), V0, true)
+            part(pre .. "P", d.paw, C[d.pawc])
+            joint(pre .. "Ankle", pre .. "D", pre .. "P", V(0, -d.L, 0), V(0, -d.poy, -d.pz))
+            HIP[pre] = V(side * d.x, d.y, d.z)
+        end
+    end
+
+    model.PrimaryPart = P.Body
+    model.Parent = Workspace
+    PP_model, PP_J, PP_P, PP_HIP = model, J, P, HIP
+end
+
+function PP_ik(H, T, flip, U, L)
+    local dy, dz = T.Y - H.Y, T.Z - H.Z
+    local dr = math.sqrt(dy * dy + dz * dz)
+    local D = math.clamp(dr, 0.08, U + L - 0.002)
+    local phi = math.atan2(-dz, -dy)
+    local cosA = (U * U + D * D - L * L) / (2 * U * D)
+    local alpha = math.acos(math.clamp(cosA, -1, 1))
+    local a = phi + flip * alpha
+    local ky = H.Y - U * math.cos(a)
+    local kz = H.Z - U * math.sin(a)
+    local ty, tz = H.Y, H.Z
+    if dr > 1e-4 then
+        ty = H.Y + dy / dr * D
+        tz = H.Z + dz / dr * D
+    end
+    local b = math.atan2(-(tz - kz), -(ty - ky))
+    return a, b - a, b
+end
+
+function PP_gait(phase, stride, lift, duty)
+    local p = phase % 1
+    if p < duty then
+        local u = p / duty
+        return -stride / 2 + stride * u, 0
+    end
+    local v = (p - duty) / (1 - duty)
+    return stride / 2 - stride * v, math.sin(math.pi * v) * lift
+end
+
+function PP_setState(s)
+    PP_state, PP_stateT = s, 0
+end
+
+function PP_startHop(n)
+    PP_hops = n
+    PP_hopPhase, PP_hopT = "crouch", 0
+    PP_setState("Hop")
+end
+
+function PP_startPlay()
+    local sp = PP_sp
+    if not sp then return end
+    PP_nextPlay = (25 - 17 * PP_Config.Playful) * (0.7 + math.random() * 0.6)
+    PP_binky, PP_pounce = false, false
+    if sp.anim.play == "binky" then
+        PP_binky = true
+        PP_startHop(2)
+    else
+        PP_pounce = sp.anim.play == "pounce"
+        PP_setState("Bow")
+    end
+end
+
+function PP_pet()
+    PP_petReq = true
+end
+
+function PP_teleport(opos, olook)
+    local p = opos - Vector3.new(olook.X, 0, olook.Z).Unit * (4 * PP_SC) + Vector3.new(0, 3, 0)
+    local hit = Workspace:Raycast(p, Vector3.new(0, -60, 0), PP_rp)
+    PP_pos = hit and hit.Position or Vector3.new(p.X, opos.Y - 3, p.Z)
+    PP_air, PP_vy, PP_speed = false, 0, 0
+    PP_N = Vector3.new(0, 1, 0)
+    local d = PP_flat(opos - PP_pos)
+    if d.Magnitude > 0.1 then PP_yaw = math.atan2(-d.X, -d.Z) end
+    PP_setState("Idle")
+end
+
+function PP_refreshFilter()
+    local list = { PP_model }
+    for _, pl in ipairs(Players:GetPlayers()) do
+        if pl.Character then table.insert(list, pl.Character) end
+    end
+    PP_rp.FilterDescendantsInstances = list
+end
+
+function PP_step(dt)
+    local cfg = PP_Config
+    if not cfg.Enabled then
+        if PP_model then PP_destroy() end
+        return
+    end
+    dt = math.clamp(dt, 0, 0.05)
+    if dt <= 0 then return end
+
+    if not PP_model or PP_dirty or PP_builtKey ~= (cfg.Pet .. "|" .. cfg.Scale) then
+        PP_build()
+        PP_refreshFilter()
+    end
+
+    local char = LocalPlayer.Character
+    local oroot = char and char:FindFirstChild("HumanoidRootPart")
+    local ohum = char and char:FindFirstChildOfClass("Humanoid")
+    if not oroot then return end
+
+    local sp, D, SC = PP_sp, PP_D, PP_SC
+    local an = sp.anim
+    local opos = oroot.Position
+    local ovel = oroot.AssemblyLinearVelocity
+    local ospeed = PP_flat(ovel).Magnitude
+
+    PP_t = PP_t + dt
+    PP_filterT = PP_filterT - dt
+    if PP_filterT <= 0 then PP_filterT = 1 PP_refreshFilter() end
+
+    if not PP_pos then PP_teleport(opos, oroot.CFrame.LookVector) end
+
+    local rayUp = 5 * SC + 2
+    local rayDown = 5 * SC + 50
+    local fx, fz = -math.sin(PP_yaw), -math.cos(PP_yaw)
+    local rx, rz = math.cos(PP_yaw), -math.sin(PP_yaw)
+    local off = 1.4 * SC
+
+    local function castGround(dx, dz)
+        return Workspace:Raycast(PP_pos + Vector3.new(dx, rayUp, dz), Vector3.new(0, -rayDown, 0), PP_rp)
+    end
+
+    local hC = castGround(0, 0)
+    local hF = castGround(fx * off, fz * off)
+    local hB = castGround(-fx * off, -fz * off)
+    local hL = castGround(rx * off, rz * off)
+    local hR = castGround(-rx * off, -rz * off)
+
+    local gY, gN, hit
+    if hC then
+        gY, gN, hit = hC.Position.Y, hC.Normal, hC
+    else
+        local best
+        for _, h in ipairs({ hF, hB, hL, hR }) do
+            if h and (not best or h.Distance < best.Distance) then best = h end
+        end
+        if best then gY, gN, hit = best.Position.Y, best.Normal, best end
+    end
+
+    if PP_air then
+        PP_vy = PP_vy - 70 * dt
+        PP_pos = PP_pos + Vector3.new(0, PP_vy * dt, 0)
+        if gY and PP_pos.Y <= gY and PP_vy <= 0 then
+            PP_pos = Vector3.new(PP_pos.X, gY, PP_pos.Z)
+            PP_air = false
+            PP_landed = PP_vy
+            PP_vy = 0
+        end
+    else
+        if gY then
+            if PP_pos.Y > gY + 0.35 * SC then
+                PP_air, PP_vy = true, 0
+            else
+                local followRate = math.min(1, dt * 20)
+                PP_pos = Vector3.new(PP_pos.X, PP_pos.Y + (gY - PP_pos.Y) * followRate, PP_pos.Z)
+            end
+        else
+            PP_air, PP_vy = true, 0
+        end
+    end
+    if PP_pos.Y < Workspace.FallenPartsDestroyHeight + 25 then PP_teleport(opos, oroot.CFrame.LookVector) end
+
+    local nTarget = (gN and gN.Y > 0.5) and gN or Vector3.new(0, 1, 0)
+    PP_N = PP_N:Lerp(nTarget, math.min(1, dt * 10)).Unit
+
+    if not PP_air and PP_speed > 4 and hC and not hF then
+        PP_avoidT = math.max(PP_avoidT, 0.35)
+    end
+
+    local landedVy = PP_landed
+    PP_landed = nil
+    if landedVy and PP_S.h then PP_S.h.v = PP_S.h.v - math.min(4, -landedVy * 0.15) end
+
+    PP_hopCD = math.max(0, PP_hopCD - dt)
+    PP_avoidT = math.max(0, PP_avoidT - dt)
+    PP_happy = math.max(0, PP_happy - dt)
+    PP_stateT = PP_stateT + dt
+
+    local toOwner = PP_flat(opos - PP_pos)
+    local dist = toOwner.Magnitude
+    if dist > 90 then PP_teleport(opos, oroot.CFrame.LookVector) toOwner = PP_flat(opos - PP_pos) dist = toOwner.Magnitude end
+
+    local follow = cfg.FollowDist
+    local wantMove, goal, wantRun = false, nil, false
+    local busy = PP_state == "Hop" or PP_state == "Bow"
+
+    if PP_cmdSit then
+        PP_moving = false
+    elseif cfg.Mode == "Follow" then
+        if PP_moving then
+            if dist < follow * 0.6 then PP_moving = false end
+        elseif dist > follow + 1.5 then
+            PP_moving = true
+        end
+        wantMove, goal, wantRun = PP_moving, opos, dist > follow + 9
+    elseif cfg.Mode == "Wander" then
+        if dist > follow * 2.5 then
+            wantMove, goal, wantRun = true, opos, dist > follow + 9
+            PP_wanderGoal = nil
+        else
+            PP_wanderT = PP_wanderT - dt
+            if not PP_wanderGoal and PP_wanderT <= 0 then
+                local a = math.random() * math.pi * 2
+                local r = 4 + math.random() * math.min(14, follow * 2)
+                PP_wanderGoal = Vector3.new(opos.X + math.cos(a) * r, PP_pos.Y, opos.Z + math.sin(a) * r)
+                PP_wanderRun = math.random() < 0.2
+            end
+            if PP_wanderGoal then
+                if PP_flat(PP_wanderGoal - PP_pos).Magnitude < 1.2 then
+                    PP_wanderGoal, PP_wanderT = nil, 2 + math.random() * 4
+                else
+                    wantMove, goal, wantRun = true, PP_wanderGoal, PP_wanderRun
+                end
+            end
+        end
+    end
+    if busy then wantMove = false end
+
+    if PP_petReq then
+        PP_petReq = false
+        PP_happy = 5
+        if PP_state ~= "Hop" and PP_state ~= "Bow" then PP_startPlay() end
+    end
+    if cfg.MimicJump and ohum and ohum.FloorMaterial == Enum.Material.Air and ovel.Y > 12 and os.clock() - PP_lastOwnerJump > 0.8 then
+        PP_lastOwnerJump = os.clock()
+        if PP_hopCD <= 0 and PP_state ~= "Hop" and PP_state ~= "Bow" and not PP_cmdSit and math.random() < 0.7 then
+            PP_pounce, PP_binky = false, an.play == "binky"
+            PP_startHop(1)
+        end
+    end
+
+    local fwd = Vector3.new(-math.sin(PP_yaw), 0, -math.cos(PP_yaw))
+    local desiredYaw = PP_yaw
+    if wantMove and goal then
+        local d = PP_flat(goal - PP_pos)
+        if d.Magnitude > 0.05 then desiredYaw = math.atan2(-d.X, -d.Z) end
+    elseif not busy and not PP_cmdSit and dist > 2 and PP_state ~= "Sit" then
+        local face = math.atan2(-toOwner.X, -toOwner.Z)
+        if math.abs(PP_angDiff(face, PP_yaw)) > 0.5 then desiredYaw = face end
+    end
+
+    if wantMove and PP_speed > 2 and PP_state ~= "Hop" then
+        local look = 1.6 * SC + PP_speed * 0.22
+        local h1 = Workspace:Raycast(PP_pos + Vector3.new(0, 0.7 * SC, 0), fwd * look, PP_rp)
+        if h1 and h1.Normal.Y < 0.55 then
+            local h2 = Workspace:Raycast(PP_pos + Vector3.new(0, 1.6 * SC, 0), fwd * look, PP_rp)
+            if not h2 and PP_hopCD <= 0 then
+                PP_pounce, PP_binky = false, an.play == "binky"
+                PP_startHop(1)
+            elseif PP_avoidT <= 0 then
+                PP_avoidT, PP_avoidDir = 0.7, math.random() < 0.5 and 1 or -1
+            end
+        elseif PP_avoidT <= 0 then
+            local c = PP_pos + fwd * (1.8 * SC + PP_speed * 0.2) + Vector3.new(0, 2, 0)
+            local h3 = Workspace:Raycast(c, Vector3.new(0, -9, 0), PP_rp)
+            if not h3 or h3.Position.Y < PP_pos.Y - 5 then
+                PP_avoidT, PP_avoidDir = 0.7, math.random() < 0.5 and 1 or -1
+            end
+        end
+    end
+    if PP_avoidT > 0 then desiredYaw = PP_yaw + PP_avoidDir * 1.2 end
+
+    local diff = PP_angDiff(desiredYaw, PP_yaw)
+    local prevYaw = PP_yaw
+    PP_yaw = PP_yaw + math.clamp(diff * (1 - math.exp(-dt * 9)), -8 * dt, 8 * dt)
+    PP_yawRate = PP_yawRate + (PP_angDiff(PP_yaw, prevYaw) / dt - PP_yawRate) * math.min(1, dt * 10)
+
+    local sq = math.sqrt(SC)
+    local walkSpd = an.walk * sq
+    local runSpd = math.min(60, math.max(an.run * sq, ospeed * 1.2))
+    local tgt = 0
+    local cruise = wantRun and runSpd or walkSpd
+    if wantMove and PP_state ~= "Sit" then
+        tgt = cruise
+        if cfg.Mode == "Follow" then tgt = tgt * math.clamp((dist - follow * 0.6) / 4, 0.35, 1) end
+        tgt = tgt * math.max(0, math.cos(diff)) ^ 2
+    end
+    local decel = 30
+
+    if an.hopLoco and PP_state ~= "Hop" and PP_state ~= "Bow" then
+        if wantMove and PP_state ~= "Sit" then
+            PP_locoT = PP_locoT - dt
+            if not PP_air and PP_locoT <= 0 and math.cos(diff) > 0.6 then
+                PP_air = true
+                PP_vy = (wantRun and an.locoVy.run or an.locoVy.walk) * sq
+                PP_speed = tgt
+                PP_locoT = 2 * PP_vy / 70 + (wantRun and 0.05 or 0.12)
+            end
+        end
+        tgt = PP_air and PP_speed or 0
+        decel = 70
+    end
+    if PP_state == "Hop" then tgt = PP_speed end
+    PP_lastSpeed = PP_speed
+    PP_speed = PP_approach(PP_speed, tgt, (tgt > PP_speed and 24 or decel) * dt)
+    PP_pos = PP_pos + Vector3.new(-math.sin(PP_yaw), 0, -math.cos(PP_yaw)) * PP_speed * dt
+
+    if PP_state == "Bow" then
+        if PP_stateT > an.bowT then PP_startHop(cfg.Playful > 0.5 and 2 or 1) end
+    elseif PP_state == "Hop" then
+        PP_hopT = PP_hopT + dt
+        if PP_hopPhase == "crouch" then
+            if PP_hopT > (PP_hops > 1 and 0.08 or 0.16) then
+                PP_air, PP_vy = true, an.hopVy * sq
+                if PP_pounce then PP_speed = 9 * sq end
+                if PP_binky then PP_binkyDir = -PP_binkyDir end
+                PP_hops = PP_hops - 1
+                PP_hopPhase, PP_hopT = "air", 0
+            end
+        elseif PP_hopPhase == "air" then
+            if not PP_air or PP_hopT > 3 then PP_hopPhase, PP_hopT = "land", 0 end
+        elseif PP_hopT > 0.2 then
+            if PP_hops > 0 then
+                PP_hopPhase, PP_hopT = "crouch", 0
+            else
+                PP_hopCD = 1.5
+                PP_pounce, PP_binky = false, false
+                PP_setState("Idle")
+            end
+        end
+    elseif PP_cmdSit then
+        if PP_state ~= "Sit" then PP_setState("Sit") end
+    elseif PP_state == "Sit" then
+        if wantMove or ospeed > 8 or PP_stateT > 14 then PP_setState("Idle") end
+    else
+        local ns
+        if an.hopLoco then
+            ns = wantMove and (wantRun and "Run" or "Walk") or "Idle"
+        elseif PP_speed > walkSpd * (PP_state == "Run" and 1.15 or 1.4) then ns = "Run"
+        elseif PP_speed > (PP_state ~= "Idle" and 0.3 or 0.8) then ns = "Walk"
+        else ns = "Idle" end
+        if ns ~= PP_state then PP_setState(ns) end
+
+        if ns == "Idle" and not wantMove then
+            PP_idleT = PP_idleT + dt
+            if cfg.AutoPlay then PP_nextPlay = PP_nextPlay - dt end
+            if cfg.AutoSit and PP_idleT > 3.5 and ospeed < 2 and dist < follow + 2 and math.random() < dt * an.sitChance then
+                PP_idleT = 0
+                PP_setState("Sit")
+            elseif cfg.AutoPlay and PP_nextPlay <= 0 and dist < follow + 4 then
+                PP_startPlay()
+            end
+        else
+            PP_idleT = 0
+        end
+    end
+
+    local st = PP_state
+    local airborne = PP_air
+    local standH, standP = D.standH, D.standPitch
+    local legF, legB = sp.legs.F, sp.legs.B
+    local key = (airborne and st ~= "Hop") and "Hop" or st
+    local pz = sp.pose[key] or sp.pose.Idle
+    local tH, tPitch = standH, standP
+    local offF, offB, sprB = 0, 0, 0
+    local hTime = 0.14
+    local tTail, wagAmp, wagHz = pz.tail, pz.amp, pz.hz
+    local pantT = pz.pant or 0
+
+    if st == "Sit" then
+        tH, tPitch = D.sitH, an.sitPitch
+        offB = -0.22 * legB.len
+        sprB = an.sitSpread
+        tTail = -an.sitPitch + 0.25
+    elseif st == "Bow" then
+        tPitch = pz.pitch
+        tH = math.max(standH * pz.hMul, PP_minH(sp, tPitch))
+        offF = -(pz.stretch or 0)
+    elseif st == "Run" then
+        tH = standH * (pz.hMul or 1)
+    end
+    if st == "Hop" then
+        hTime = 0.07
+        if PP_hopPhase == "crouch" then
+            tPitch = standP + 0.12
+            tH = math.max(standH * 0.78, PP_minH(sp, tPitch))
+        elseif PP_hopPhase == "air" then
+            tH, tPitch = standH * 1.08, standP + math.clamp(PP_vy * an.airPitch, -0.5, 0.5)
+        else
+            tPitch = standP - 0.12
+            tH = math.max(standH * 0.85, PP_minH(sp, tPitch))
+        end
+    elseif airborne then
+        hTime = 0.1
+        tH, tPitch = standH * 1.08, standP + math.clamp(PP_vy * an.airPitch, -0.5, 0.5)
+    end
+    if PP_happy > 0 then
+        wagAmp, wagHz = math.max(wagAmp, an.happy.amp), math.max(wagHz, an.happy.hz)
+        if an.pant then pantT = math.max(pantT, 0.9) end
+    end
+    if an.pant then
+        PP_heat = math.clamp(PP_heat + (st == "Run" and 0.25 or -0.08) * dt, 0, 1)
+        pantT = math.max(pantT, PP_heat * 1.2)
+    else
+        pantT = 0
+    end
+
+    local h = PP_smooth("h", tH, hTime, dt)
+    local pitch = PP_smooth("pitch", tPitch, hTime + 0.03, dt)
+    offF = PP_smooth("offF", offF, 0.18, dt)
+    offB = PP_smooth("offB", offB, 0.18, dt)
+    sprB = PP_smooth("sprB", sprB, 0.18, dt)
+    local tailBase = PP_smooth("tail", tTail, 0.2, dt)
+    local wA = PP_smooth("wagAmp", wagAmp, 0.2, dt)
+    local wH = PP_smooth("wagHz", wagHz, 0.25, dt)
+    local airAmt = math.clamp(PP_smooth("air", airborne and 1 or 0, 0.06, dt), 0, 1)
+    local pant = math.clamp(PP_smooth("pant", pantT, 0.4, dt), 0, 1)
+
+    local unitSpeed = PP_speed / SC
+    local animSpeed = math.max(unitSpeed, math.abs(PP_yawRate) * 0.6)
+    if st == "Sit" or st == "Bow" or st == "Hop" or an.hopLoco then animSpeed = 0 end
+    local runAmt = math.clamp((unitSpeed - 7) / 6, 0, 1)
+    if an.hopLoco then runAmt = 0 end
+    local duty = 0.62 - 0.2 * runAmt
+    local cps = math.clamp(animSpeed * duty / D.strideMax, 1.6, 12)
+    local moveFade = math.clamp(animSpeed / 0.4, 0, 1)
+    PP_phase = (PP_phase + cps * dt) % 1
+    local stride = animSpeed * duty / cps * moveFade
+    local lift = D.liftH * (1 + 0.5 * runAmt) * moveFade
+
+    local bob = 0.035 * (1 + runAmt) * moveFade * math.cos(4 * math.pi * (PP_phase - duty / 2))
+    local pitchOsc = 0.03 * math.sin(4 * math.pi * PP_phase) * moveFade - 0.04 * runAmt
+    PP_wagPh = PP_wagPh + dt * 2 * math.pi * wH
+    local excite = PP_happy > 0 and 1 or 0
+    local roll = math.clamp(0.03 * math.sin(2 * math.pi * PP_phase) * moveFade - PP_yawRate * 0.02, -0.25, 0.25)
+        + math.sin(PP_wagPh) * 0.05 * excite * (an.pant and 1 or 0.3)
+    if st == "Bow" and an.play == "pounce" then roll = roll + math.sin(PP_t * 16) * 0.08 end
+    if PP_binky and st == "Hop" and PP_hopPhase == "air" then
+        roll = roll + PP_binkyDir * 0.7 * math.sin(math.pi * math.clamp(PP_hopT / 0.45, 0, 1))
+    end
+
+    local bhz = an.breathHz * (1 + (st == "Run" and 0.8 or 0) + pant * 0.6 + (PP_happy > 0 and 0.4 or 0))
+    PP_breathPh = PP_breathPh + dt * 2 * math.pi * bhz
+    local breath = math.sin(PP_breathPh)
+
+    local up = PP_N
+    local fwdP = (fwd - up * fwd:Dot(up)).Unit
+    local rightP = fwdP:Cross(up).Unit
+    local groundCF = CFrame.fromMatrix(PP_pos, rightP, up, -fwdP)
+    local totalPitch = pitch + pitchOsc
+    local rootCF = groundCF * CFrame.new(0, (h + bob + breath * 0.006) * SC, 0) * CFrame.Angles(totalPitch, 0, roll)
+
+    local P, J = PP_P, PP_J
+    P.Body.CFrame = rootCF
+
+    local legs = {
+        LF = { side = -1, row = "F", off = 0 },
+        RB = { side = 1, row = "B", off = 0 },
+        RF = { side = 1, row = "F", off = 0.5 },
+        LB = { side = -1, row = "B", off = 0.5 },
+    }
+    for name, lg in pairs(legs) do
+        local front = lg.row == "F"
+        local def = front and legF or legB
+        local zN = PP_hipZ(def, pitch) + (front and offF or offB)
+        local xN = lg.side * (def.x + (front and 0 or sprB))
+        local zo, ly = PP_gait(PP_phase + lg.off, stride, lift, duty)
+        local base = groundCF:PointToWorldSpace(Vector3.new(xN, 0, zN + zo) * SC)
+
+        local dy = 0
+        if airAmt < 0.5 then
+            local fh = Workspace:Raycast(base + Vector3.new(0, 1.2 * SC, 0), Vector3.new(0, -3 * SC, 0), PP_rp)
+            if fh then dy = math.clamp(fh.Position.Y - base.Y, -1.0 * SC, 1.0 * SC) end
+        end
+        dy = PP_smooth("fd" .. name, dy, 0.05, dt)
+
+        local world = Vector3.new(base.X, base.Y + dy + (def.ank + ly) * SC, base.Z)
+        local target = rootCF:PointToObjectSpace(world) / SC
+        if airAmt > 0.001 then
+            local tuck = Vector3.new(xN, def.y - 0.3 * def.len, def.z + (front and -0.25 or 0.3))
+            target = target:Lerp(tuck, airAmt)
+        end
+        local a, k, b = PP_ik(PP_HIP[name], target, front and -1 or 1, def.U, def.L)
+        local toe = (lift > 0.01 and ly > 0) and 0.6 * ly / lift or 0
+        local pa = (-b - totalPitch + toe) * (1 - airAmt) + 0.3 * airAmt
+        J[name .. "Hip"].Transform = CFrame.Angles(a, 0, 0) * CFrame.Angles(0, 0, -roll)
+        J[name .. "Knee"].Transform = CFrame.Angles(k, 0, 0)
+        J[name .. "Ankle"].Transform = CFrame.Angles(pa, 0, 0)
+    end
+
+    local lookW = cfg.LookAtYou and 1 or 0
+    lookW = lookW * (1 - runAmt * 0.85) * (st == "Hop" and 0.5 or 1)
+    local headLocal = sp.head.hj * SC
+    local v = rootCF:PointToObjectSpace(opos + Vector3.new(0, 1.5, 0)) - headLocal
+    local lyaw = math.clamp(math.atan2(-v.X, -v.Z), -1.0, 1.0)
+    local lpit = math.clamp(math.atan2(v.Y, math.sqrt(v.X * v.X + v.Z * v.Z)), -0.35, 0.6)
+    local headYaw = PP_smooth("lookYaw", lyaw * lookW, 0.2, dt)
+    local headPit = PP_smooth("lookPit", lpit * lookW, 0.2, dt)
+    local curious = lookW * 0.1 * math.sin(PP_t * 0.37) * math.max(0, math.sin(PP_t * 0.13))
+    local headPitch = -(pitch - standP) * an.headLevel - standP * 0.5 - pitchOsc * 0.8 + headPit + 0.012 * breath
+    J.Head.Transform = CFrame.Angles(0, headYaw, 0) * CFrame.Angles(headPitch, 0, curious)
+
+    local open = 0
+    if an.pant then
+        open = pant * (0.12 + 0.09 * math.sin(PP_t * 13))
+        P.Tongue.Transparency = 1 - math.clamp((pant - 0.15) * 4, 0, 1)
+    elseif an.noseTwitch then
+        local tw = math.max(0, math.sin(PP_t * 0.7)) ^ 4
+        open = 0.05 * tw * (0.5 + 0.5 * math.sin(PP_t * 24))
+    end
+    J.Jaw.Transform = CFrame.Angles(-open, 0, 0)
+
+    local T = sp.tail
+    local bobT = T.bob * math.sin(PP_wagPh * 0.5)
+    local accNow = (PP_speed - PP_lastSpeed) / math.max(dt, 1e-4) / SC
+    local speedNorm = math.clamp(PP_speed / math.max(an.run * math.sqrt(SC), 1), 0, 1)
+    local gravityPitch = speedNorm * 0.45
+    local accPitch = math.clamp(-accNow * 0.025, -0.5, 0.5)
+
+    for i = 1, PP_nTail do
+        local t = (PP_nTail > 1) and ((i - 1) / (PP_nTail - 1)) or 0
+        local lag = (i - 1) * T.lag
+
+        local baseP = (i == 1) and (tailBase + bobT) or T.curl
+        baseP = baseP + gravityPitch * (0.3 + t * 0.7) + accPitch * (0.25 + t * 0.75)
+
+        local ampScale = 1 + t * 0.8
+        local waveY = math.sin(PP_wagPh - lag) * wA * ampScale
+        local waveR = math.cos(PP_wagPh - lag * 1.3) * wA * 0.35 * ampScale
+        local bounce = math.sin(PP_wagPh * 0.5 + i * 0.9) * 0.025 * (1 + speedNorm * 1.5)
+
+        local sPitch = PP_smooth("tailP" .. i, baseP, 0.11 + i * 0.012, dt)
+        local sYaw   = PP_smooth("tailY" .. i, waveY, 0.09 + i * 0.008, dt)
+        local sRoll  = PP_smooth("tailR" .. i, waveR + bounce, 0.09 + i * 0.008, dt)
+
+        J["Tail" .. i].Transform = CFrame.Angles(sPitch, sYaw, sRoll)
+    end
+
+    local accZ = (PP_speed - PP_lastSpeed) / dt / SC
+    local hv = PP_S.h and PP_S.h.v or 0
+    local earBase = an.earRun * runAmt + (an.hopLoco and an.earRun * (airborne and 0.5 or 0) or 0)
+    local earT = math.clamp(earBase + (-accZ * 0.012 - hv * 0.25 - (airborne and PP_vy * 0.03 or 0)) * an.earGain, -1.2, 0.9)
+    PP_swT = PP_swT - dt
+    if an.earSwivel and PP_swT <= 0 then
+        PP_swT = 2 + math.random() * 3
+        PP_S.swTL, PP_S.swTR = (math.random() - 0.5) * 0.9, (math.random() - 0.5) * 0.9
+    end
+    for _, s in ipairs({ "L", "R" }) do
+        if math.random() < dt * 0.15 then
+            local sp_ = PP_S["ear" .. s]
+            if sp_ then sp_.v = sp_.v + (math.random() - 0.5) * 12 * an.earGain end
+        end
+        local ang = PP_spring("ear" .. s, earT, dt, an.earHz, an.earZeta)
+        local rl = (s == "L" and -1 or 1) * math.clamp(PP_yawRate * 0.04, -0.3, 0.3) * an.earGain
+        local swivelT = an.earSwivel and (PP_S["swT" .. s] or 0) or 0
+        local sw = PP_smooth("sw" .. s, swivelT, 0.15, dt)
+        J["Ear" .. s].Transform = CFrame.Angles(ang, sw, rl)
+    end
+
+    PP_blinkT = PP_blinkT - dt
+    if PP_blinkT <= 0 then PP_blinkT = 2 + math.random() * 3 PP_blinkOn = 0.14 end
+    local blinking = PP_blinkOn > 0
+    PP_blinkOn = math.max(0, PP_blinkOn - dt)
+    for _, s in ipairs({ "L", "R" }) do
+        P["Lid" .. s].Transparency = blinking and 0 or 1
+        P["Glint" .. s].Transparency = blinking and 1 or 0
+    end
+
+    local br = sp.chest.d * (1 + 0.03 * breath) * SC
+    P.Chest.Size = Vector3.new(br, br, br)
+end
+
+table.insert(PP_conns, RunService.RenderStepped:Connect(PP_step))
+
+table.insert(PP_conns, UIS.InputBegan:Connect(function(input, processed)
+    if processed or not PP_model or not PP_Config.Enabled or not PP_Config.Pettable then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+    local loc = UIS:GetMouseLocation()
+    local ray = cam:ViewportPointToRay(loc.X, loc.Y)
+    local rp = RaycastParams.new()
+    rp.FilterType = Enum.RaycastFilterType.Include
+    rp.FilterDescendantsInstances = { PP_model }
+    if Workspace:Raycast(ray.Origin, ray.Direction * 200, rp) then PP_pet() end
+end))
+
+_G.Puppy = {
+    Config = PP_Config,
+    Unload = function()
+        for _, c in ipairs(PP_conns) do pcall(function() c:Disconnect() end) end
+        PP_conns = {}
+        PP_destroy()
+        _G.Puppy = nil
+    end,
+}
+
+PetGroup = WorldTab:AddRightGroupbox('Pet')
+
+PetToggle = PetGroup:AddToggle('Puppy', {
+    Text = 'Pet',
+    Default = PP_Config.Enabled,
+    Tooltip = 'a cute little friend who stays with u :3'
+})
+
+PetDep = PetGroup:AddDependencyBox()
+
+PetDep:AddDropdown('PuppyPet', {
+    Values = PP_PETS,
+    Default = 1,
+    Multi = false,
+    Text = 'Pet',
+    Tooltip = 'Dog, Cat, Bunny or Fox.'
+})
+PetDep:AddDropdown('PuppyMode', {
+    Values = { 'Follow', 'Stay', 'Wander' },
+    Default = 1,
+    Multi = false,
+    Text = 'Mode',
+    Tooltip = 'Follow trails you, Stay holds position, Wander roams around you'
+})
+PetDep:AddToggle('PuppySit', {
+    Text = 'Sit',
+    Default = false,
+    Tooltip = 'Tell the pet to sit and stay seated until you say so'
+})
+PetDep:AddButton('Play', function() PP_pet() end)
+PetDep:AddButton('Hop', function()
+    if PP_model and PP_state ~= "Hop" then
+        PP_pounce, PP_binky = false, PP_sp and PP_sp.anim.play == "binky"
+        PP_startHop(1)
+    end
+end)
+PetDep:AddButton('Teleport To Me', function()
+    local c = LocalPlayer.Character
+    local r = c and c:FindFirstChild("HumanoidRootPart")
+    if r then PP_teleport(r.Position, r.CFrame.LookVector) end
+end)
+PetDep:SetupDependencies({ { PetToggle, true } })
+
+local tabOk, PetTabbox = pcall(function() return WorldTab:AddRightTabbox() end)
+if tabOk and PetTabbox then
+    PetLook = PetTabbox:AddTab('Appearance')
+    PetBeh = PetTabbox:AddTab('Behavior')
+else
+    PetLook = WorldTab:AddRightGroupbox('Pet Appearance')
+    PetBeh = WorldTab:AddRightGroupbox('Pet Behavior')
+end
+
+LookDep = PetLook:AddDependencyBox()
+LookDep:AddSlider('PuppyScale', {
+    Text = 'Size',
+    Default = PP_Config.Scale,
+    Min = 0.5, Max = 3, Rounding = 1,
+    Tooltip = 'the pets size'
+})
+LookDep:AddLabel('Coat'):AddColorPicker('PuppyCoat', { Default = PP_Config.Coat, Title = 'Coat' })
+LookDep:AddLabel('Muzzle / Paws / Tail Tip'):AddColorPicker('PuppyLight', { Default = PP_Config.Light, Title = 'Light markings' })
+LookDep:AddLabel('Ears / Dark Markings'):AddColorPicker('PuppyDark', { Default = PP_Config.Dark, Title = 'Dark markings' })
+LookDep:AddButton('Reset Colors', function()
+    local sp = PP_SPECIES[PP_Config.Pet]
+    if not sp then return end
+    pcall(function() Options.PuppyCoat:SetValueRGB(sp.colors.coat) end)
+    pcall(function() Options.PuppyLight:SetValueRGB(sp.colors.light) end)
+    pcall(function() Options.PuppyDark:SetValueRGB(sp.colors.dark) end)
+    PP_Config.Coat, PP_Config.Light, PP_Config.Dark = sp.colors.coat, sp.colors.light, sp.colors.dark
+    PP_dirty = true
+end)
+LookDep:SetupDependencies({ { PetToggle, true } })
+
+BehDep = PetBeh:AddDependencyBox()
+BehDep:AddSlider('PuppyFollow', {
+    Text = 'Follow Distance',
+    Default = PP_Config.FollowDist,
+    Min = 3, Max = 20, Rounding = 0, Suffix = ' studs',
+    Tooltip = 'How close it stays before it settles down'
+})
+BehDep:AddSlider('PuppyPlayful', {
+    Text = 'Playfulness',
+    Default = PP_Config.Playful,
+    Min = 0, Max = 1, Rounding = 2,
+    Tooltip = 'How often it plays on its own'
+})
+BehDep:AddToggle('PuppyLook', { Text = 'Look At You', Default = PP_Config.LookAtYou, Tooltip = 'Head follows you while it is not running' })
+BehDep:AddToggle('PuppyPet', { Text = 'Click To Pet', Default = PP_Config.Pettable, Tooltip = 'Left-click the pet and it gets excited' })
+BehDep:AddToggle('PuppyAutoSit', { Text = 'Auto Sit', Default = PP_Config.AutoSit, Tooltip = 'Sits by itself when you stand still' })
+BehDep:AddToggle('PuppyAutoPlay', { Text = 'Auto Play', Default = PP_Config.AutoPlay, Tooltip = 'Play bows, pounces and binkies on its own' })
+BehDep:AddToggle('PuppyMimic', { Text = 'Mimic Jumps', Default = PP_Config.MimicJump, Tooltip = 'Hops when you jump' })
+BehDep:SetupDependencies({ { PetToggle, true } })
+
+Toggles.Puppy:OnChanged(function(v) PP_Config.Enabled = v end)
+Toggles.PuppySit:OnChanged(function(v) PP_cmdSit = v end)
+Toggles.PuppyLook:OnChanged(function(v) PP_Config.LookAtYou = v end)
+Toggles.PuppyPet:OnChanged(function(v) PP_Config.Pettable = v end)
+Toggles.PuppyAutoSit:OnChanged(function(v) PP_Config.AutoSit = v end)
+Toggles.PuppyAutoPlay:OnChanged(function(v) PP_Config.AutoPlay = v end)
+Toggles.PuppyMimic:OnChanged(function(v) PP_Config.MimicJump = v end)
+
+Options.PuppyCoat:OnChanged(function(v) PP_Config.Coat = v PP_dirty = true end)
+Options.PuppyLight:OnChanged(function(v) PP_Config.Light = v PP_dirty = true end)
+Options.PuppyDark:OnChanged(function(v) PP_Config.Dark = v PP_dirty = true end)
+Options.PuppyMode:OnChanged(function(v) PP_Config.Mode = v PP_wanderGoal = nil end)
+Options.PuppyScale:OnChanged(function(v) PP_Config.Scale = v end)
+Options.PuppyFollow:OnChanged(function(v) PP_Config.FollowDist = v end)
+Options.PuppyPlayful:OnChanged(function(v) PP_Config.Playful = v end)
+
+Options.PuppyPet:OnChanged(function(v)
+    local sp = PP_SPECIES[v]
+    if not sp then return end
+    PP_Config.Pet = v
+    PP_Config.Coat, PP_Config.Light, PP_Config.Dark = sp.colors.coat, sp.colors.light, sp.colors.dark
+    pcall(function() Options.PuppyCoat:SetValueRGB(sp.colors.coat) end)
+    pcall(function() Options.PuppyLight:SetValueRGB(sp.colors.light) end)
+    pcall(function() Options.PuppyDark:SetValueRGB(sp.colors.dark) end)
+    PP_Config.Coat, PP_Config.Light, PP_Config.Dark = sp.colors.coat, sp.colors.light, sp.colors.dark
+    PP_dirty = true
+    PP_nextPlay = 8
+    PP_setState("Idle")
+end)
+
+_48:OnUnload(function()
+    if _G.Puppy and _G.Puppy.Unload then
+        _G.Puppy.Unload()
+    end
+end)
+
+-- la footprints :3
+if _G.Footprints and _G.Footprints.Unload then
+    pcall(_G.Footprints.Unload)
+end
+
+FP_Config = {
+    Enabled    = false,
+    StepLength = 3,
+    Lifetime   = 5,
+    Size       = 1,
+    Opacity    = 1,
+    MaxPrints  = 24,
+    Mode       = "Static",
+    FadeStyle  = "Fade",
+    Color1     = Color3.fromRGB(255, 255, 255),   -- heel
+    Color2     = Color3.fromRGB(170, 200, 255),   -- toes
+    HueSpeed   = 0.3,
+    MaxDist    = 150,
+}
+
+FP_PAD = 0.7
+
+FP_conns, FP_draw, FP_prints = {}, {}, {}
+FP_free = { Quad = {}, Circle = {} }
+FP_lastPos, FP_dir, FP_dist, FP_side = nil, nil, 0, 1
+FP_occIdx = 0
+FP_pts, FP_ok = {}, {}
+
+FP_rayParams = RaycastParams.new()
+FP_rayParams.FilterType = Enum.RaycastFilterType.Exclude
+FP_rayParams.FilterDescendantsInstances = {}
+
+function FP_setFilter(char)
+    FP_rayParams.FilterDescendantsInstances = { char }
+end
+if LocalPlayer.Character then FP_setFilter(LocalPlayer.Character) end
+table.insert(FP_conns, LocalPlayer.CharacterAdded:Connect(FP_setFilter))
+
+FP_V, FP_P, FP_T = {}, {}, {}
+do
+    local zMin, zMax = -0.80, 0.86
+    local function vert(x, z)
+        FP_V[#FP_V + 1] = { x, z }
+        return #FP_V
+    end
+    local function tNorm(z) return math.clamp((z - zMin) / (zMax - zMin), 0, 1) end
+
+    local stations = {
+        { -0.80,  0.000, 0.040 },
+        { -0.77, -0.090, 0.120 },
+        { -0.72, -0.150, 0.180 },
+        { -0.65, -0.200, 0.230 },
+        { -0.56, -0.230, 0.260 },
+        { -0.45, -0.230, 0.275 },
+        { -0.33, -0.180, 0.280 },
+        { -0.20, -0.130, 0.290 },
+        { -0.07, -0.120, 0.305 },
+        {  0.06, -0.160, 0.330 },
+        {  0.18, -0.240, 0.355 },
+        {  0.30, -0.310, 0.370 },
+        {  0.40, -0.335, 0.355 },
+        {  0.47, -0.310, 0.320 },
+        {  0.52, -0.250, 0.260 },
+        {  0.55, -0.170, 0.180 },
+        {  0.57, -0.070, 0.080 },
+    }
+    local inner, outer = {}, {}
+    for i, s in ipairs(stations) do
+        inner[i] = vert(s[2], s[1])
+        outer[i] = vert(s[3], s[1])
+    end
+    for i = 1, #stations - 1 do
+        FP_P[#FP_P + 1] = {
+            kind = "Quad", n = 4,
+            inner[i], outer[i], outer[i + 1], inner[i + 1],
+            t = tNorm((stations[i][1] + stations[i + 1][1]) / 2),
+        }
+    end
+
+    local toes = {
+        { -0.210, 0.720, 0.100 },
+        { -0.030, 0.765, 0.080 },
+        {  0.120, 0.730, 0.070 },
+        {  0.245, 0.665, 0.060 },
+        {  0.335, 0.595, 0.050 },
+    }
+    for _, t in ipairs(toes) do
+        FP_T[#FP_T + 1] = { t[1], t[2], t[3], t = tNorm(t[2]) }
+    end
+end
+
+function FP_acquire(kind)
+    local o = table.remove(FP_free[kind])
+    if not o then
+        o = Drawing.new(kind)
+        o.Filled = true
+        o.Thickness = 1
+        if kind == "Circle" then o.NumSides = 24 end
+        table.insert(FP_draw, o)
+    end
+    return o
+end
+
+function FP_kill(idx)
+    local p = table.remove(FP_prints, idx)
+    if p then
+        for _, o in ipairs(p.prims) do
+            o.Visible = false
+            table.insert(FP_free.Quad, o)
+        end
+        for _, o in ipairs(p.tobj) do
+            o.Visible = false
+            table.insert(FP_free.Circle, o)
+        end
+    end
+end
+
+function FP_killAll()
+    for i = #FP_prints, 1, -1 do FP_kill(i) end
+end
+
+function FP_spawn(root)
+    local dir = FP_dir
+    if not dir then
+        local lv = root.CFrame.LookVector
+        dir = Vector3.new(lv.X, 0, lv.Z)
+    end
+    if dir.Magnitude < 0.01 then return end
+    dir = dir.Unit
+
+    local hit = Workspace:Raycast(root.Position, Vector3.new(0, -15, 0), FP_rayParams)
+    if not hit or hit.Normal.Y < 0.5 then return end
+
+    local up = hit.Normal
+    local fwd = dir - up * dir:Dot(up)
+    if fwd.Magnitude < 0.01 then return end
+    fwd = fwd.Unit
+    local right = fwd:Cross(up)
+
+    FP_side = -FP_side
+    local side = FP_side
+    local s = FP_Config.Size
+    local base = hit.Position + up * 0.03
+    local footBase = base + right * (side * 0.40 * s)
+
+    local verts = {}
+    for i, v in ipairs(FP_V) do
+        local x = (v[1] * side + side * 0.40) * s
+        verts[i] = base + right * x + fwd * (v[2] * s)
+    end
+
+    local tcen = {}
+    for i, t in ipairs(FP_T) do
+        local x = (t[1] * side + side * 0.40) * s
+        tcen[i] = base + right * x + fwd * (t[2] * s)
+    end
+
+    while #FP_prints >= FP_Config.MaxPrints do FP_kill(1) end
+
+    local prims, tobj = {}, {}
+    for i = 1, #FP_P do prims[i] = FP_acquire("Quad") end
+    for i = 1, #FP_T do tobj[i] = FP_acquire("Circle") end
+
+    table.insert(FP_prints, {
+        verts  = verts,
+        prims  = prims,
+        tcen   = tcen,
+        tobj   = tobj,
+        right  = right,
+        fwd    = fwd,
+        s      = s,
+        base   = footBase,
+        center = footBase + up * 0.3,
+        t0     = tick(),
+        hue    = math.random(),
+        vis    = 0,
+        occ    = false,
+        shown  = false,
+    })
+end
+
+function FP_step()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root or hum.Health <= 0 then
+        FP_lastPos = nil
+        return
+    end
+
+    local pos = root.Position
+    local grounded = hum.FloorMaterial ~= Enum.Material.Air
+
+    if FP_lastPos then
+        local d = pos - FP_lastPos
+        local h = Vector3.new(d.X, 0, d.Z)
+        local m = h.Magnitude
+
+        if m > 40 then
+            FP_dist = 0
+        elseif grounded then
+            if m > 0.01 then FP_dir = h.Unit end
+            FP_dist = FP_dist + m
+            if FP_dist >= FP_Config.StepLength then
+                FP_dist = math.min(FP_dist - FP_Config.StepLength, FP_Config.StepLength)
+                FP_spawn(root)
+            end
+        else
+            FP_dist = FP_Config.StepLength * 0.6
+        end
+    end
+    FP_lastPos = pos
+end
+
+function FP_approach(from, to, step)
+    if from < to then return math.min(to, from + step) end
+    return math.max(to, from - step)
+end
+
+function FP_unit(v)
+    local m = v.Magnitude
+    if m < 0.001 then return Vector2.new(0, 0) end
+    return v / m
+end
+
+function FP_hide(p)
+    if p.shown then
+        for _, o in ipairs(p.prims) do o.Visible = false end
+        for _, o in ipairs(p.tobj) do o.Visible = false end
+        p.shown = false
+    end
+end
+
+function FP_color(p, t, now)
+    if FP_Config.Mode == "Rainbow" then
+        return Color3.fromHSV((now * FP_Config.HueSpeed + p.hue + t * 0.25) % 1, 0.75, 1)
+    end
+    return FP_Config.Color1:Lerp(FP_Config.Color2, t)
+end
+
+function FP_render(p, cam, camPos, now, dt)
+    local age = now - p.t0
+    local pr = age / FP_Config.Lifetime
+    local fade = 0
+    if pr > 0.6 then
+        local k = (pr - 0.6) / 0.4
+        fade = k * k * (3 - 2 * k)
+    end
+    local shrink = FP_Config.FadeStyle == "Shrink"
+    local a = FP_Config.Opacity
+    local k = 1
+    if shrink then k = 1 - fade else a = a * (1 - fade) end
+    if age < 0.1 then a = a * (age / 0.1) end
+
+    p.vis = FP_approach(p.vis, p.occ and 0 or 1, 8 * dt)
+    a = a * p.vis
+
+    local dist = (p.center - camPos).Magnitude
+    local maxD = FP_Config.MaxDist
+    if dist > maxD then a = 0 end
+    a = a * (1 - math.clamp((dist - maxD * 0.7) / (maxD * 0.3), 0, 1))
+
+    if a <= 0.02 or k <= 0.04 then
+        FP_hide(p)
+        return
+    end
+
+    local cs
+    if shrink and k < 1 then
+        local sp = cam:WorldToViewportPoint(p.base)
+        if sp.Z <= 0.1 then FP_hide(p) return end
+        cs = Vector2.new(sp.X, sp.Y)
+    end
+
+    local verts = p.verts
+    for i = 1, #verts do
+        local sp = cam:WorldToViewportPoint(verts[i])
+        local pt = Vector2.new(sp.X, sp.Y)
+        if cs then pt = cs + (pt - cs) * k end
+        FP_pts[i] = pt
+        FP_ok[i] = sp.Z > 0.1
+    end
+
+    -- sole
+    for i, def in ipairs(FP_P) do
+        local o = p.prims[i]
+        local i1, i2, i3, i4 = def[1], def[2], def[3], def[4]
+        if FP_ok[i1] and FP_ok[i2] and FP_ok[i3] and FP_ok[i4] then
+            local A, B, C, D = FP_pts[i1], FP_pts[i2], FP_pts[i3], FP_pts[i4]
+            local dIn = FP_unit(D - A) * FP_PAD
+            local dOut = FP_unit(C - B) * FP_PAD
+            o.PointA = A - dIn
+            o.PointB = B - dOut
+            o.PointC = C + dOut
+            o.PointD = D + dIn
+            o.Color = FP_color(p, def.t, now)
+            o.Transparency = a
+            o.Visible = true
+        else
+            o.Visible = false
+        end
+    end
+
+    for i, t in ipairs(FP_T) do
+        local o = p.tobj[i]
+        local tc = p.tcen[i]
+        local sp = cam:WorldToViewportPoint(tc)
+        if sp.Z > 0.1 then
+            local r = t[3] * p.s
+            local pr_ = cam:WorldToViewportPoint(tc + p.right * r)
+            local pf = cam:WorldToViewportPoint(tc + p.fwd * r)
+            local c0 = Vector2.new(sp.X, sp.Y)
+            local rad = 0.5 * ((Vector2.new(pr_.X, pr_.Y) - c0).Magnitude + (Vector2.new(pf.X, pf.Y) - c0).Magnitude)
+            if cs then
+                c0 = cs + (c0 - cs) * k
+                rad = rad * k
+            end
+            o.Position = c0
+            o.Radius = math.max(0.5, rad)
+            o.Color = FP_color(p, t.t, now)
+            o.Transparency = a
+            o.Visible = true
+        else
+            o.Visible = false
+        end
+    end
+
+    p.shown = true
+end
+
+function FP_occCheck(camPos)
+    local n = #FP_prints
+    if n == 0 then return end
+    for _ = 1, math.min(6, n) do
+        FP_occIdx = FP_occIdx + 1
+        if FP_occIdx > n then FP_occIdx = 1 end
+        local p = FP_prints[FP_occIdx]
+        if p then
+            local hit = Workspace:Raycast(camPos, p.center - camPos, FP_rayParams)
+            p.occ = hit ~= nil
+        end
+    end
+end
+
+table.insert(FP_conns, RunService.RenderStepped:Connect(function(dt)
+    if not FP_Config.Enabled then
+        if #FP_prints > 0 then FP_killAll() end
+        FP_lastPos = nil
+        return
+    end
+
+    dt = math.clamp(dt, 0, 0.1)
+    FP_step()
+
+    local n = #FP_prints
+    if n == 0 then return end
+
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+    local camPos = cam.CFrame.Position
+    local now = tick()
+
+    FP_occCheck(camPos)
+
+    for i = n, 1, -1 do
+        local p = FP_prints[i]
+        if now - p.t0 >= FP_Config.Lifetime then
+            FP_kill(i)
+        else
+            FP_render(p, cam, camPos, now, dt)
+        end
+    end
+end))
+
+_G.Footprints = {
+    Config = FP_Config,
+    Unload = function()
+        for _, c in ipairs(FP_conns) do pcall(function() c:Disconnect() end) end
+        for _, d in ipairs(FP_draw) do pcall(function() d:Remove() end) end
+        FP_conns, FP_draw, FP_prints = {}, {}, {}
+        FP_free = { Quad = {}, Circle = {} }
+        _G.Footprints = nil
+    end,
+}
+
+FootGroup = WorldTab:AddRightGroupbox('Footprints')
+
+FootToggle = FootGroup:AddToggle('Footprints', {
+    Text = 'Footprints',
+    Default = FP_Config.Enabled,
+    Tooltip = 'Foot-shaped prints stamped on the ground as you walk'
+})
+    :AddColorPicker('FootprintsColor1', { Default = FP_Config.Color1, Title = 'Heel' })
+    :AddColorPicker('FootprintsColor2', { Default = FP_Config.Color2, Title = 'Toes' })
+
+FootDep = FootGroup:AddDependencyBox()
+
+FootDep:AddDropdown('FootprintsMode', {
+    Values = { 'Static', 'Rainbow' },
+    Default = 1,
+    Multi = false,
+    Text = 'Color Mode',
+    Tooltip = 'choose boi'
+})
+FootDep:AddDropdown('FootprintsFade', {
+    Values = { 'Fade', 'Shrink' },
+    Default = 1,
+    Multi = false,
+    Text = 'Fade Style',
+    Tooltip = 'fade cool shrink is shrink'
+})
+FootDep:AddSlider('FootprintsStep', {
+    Text = 'Step Length',
+    Default = FP_Config.StepLength,
+    Min = 1, Max = 8, Rounding = 1, Suffix = ' studs',
+    Tooltip = 'Distance walked between prints'
+})
+FootDep:AddSlider('FootprintsLifetime', {
+    Text = 'Lifetime',
+    Default = FP_Config.Lifetime,
+    Min = 1, Max = 15, Rounding = 1, Suffix = 's',
+    Tooltip = 'How long a print lasts'
+})
+FootDep:AddSlider('FootprintsSize', {
+    Text = 'Size',
+    Default = FP_Config.Size,
+    Min = 0.5, Max = 3, Rounding = 1,
+    Tooltip = 'Footprint size'
+})
+FootDep:AddSlider('FootprintsOpacity', {
+    Text = 'Opacity',
+    Default = FP_Config.Opacity,
+    Min = 0.1, Max = 1, Rounding = 2,
+    Tooltip = 'Keep at 1 for the cleanest look'
+})
+FootDep:AddSlider('FootprintsMax', {
+    Text = 'Max Prints',
+    Default = FP_Config.MaxPrints,
+    Min = 4, Max = 60, Rounding = 0,
+    Tooltip = 'Oldest prints are removed past this'
+})
+
+FootDep:SetupDependencies({
+    { FootToggle, true },
+})
+
+Toggles.Footprints:OnChanged(function(v)
+    FP_Config.Enabled = v
+end)
+
+Options.FootprintsColor1:OnChanged(function(v)
+    FP_Config.Color1 = v
+end)
+Options.FootprintsColor2:OnChanged(function(v)
+    FP_Config.Color2 = v
+end)
+Options.FootprintsMode:OnChanged(function(v)
+    FP_Config.Mode = v
+end)
+Options.FootprintsFade:OnChanged(function(v)
+    FP_Config.FadeStyle = v
+end)
+Options.FootprintsStep:OnChanged(function(v)
+    FP_Config.StepLength = v
+end)
+Options.FootprintsLifetime:OnChanged(function(v)
+    FP_Config.Lifetime = v
+end)
+Options.FootprintsSize:OnChanged(function(v)
+    FP_Config.Size = v
+end)
+Options.FootprintsOpacity:OnChanged(function(v)
+    FP_Config.Opacity = v
+end)
+Options.FootprintsMax:OnChanged(function(v)
+    FP_Config.MaxPrints = v
+end)
+
+_48:OnUnload(function()
+    if _G.Footprints and _G.Footprints.Unload then
+        _G.Footprints.Unload()
+    end
+end)
+
+if _G.JumpCircles and _G.JumpCircles.Unload then
+    pcall(_G.JumpCircles.Unload)
+end
+
+JC_Config = {
+    Enabled    = false,
+    OnTakeoff  = false,
+    Radius     = 12,
+    Duration   = 0.8,
+    Thickness  = 2,
+    Segments   = 32,
+    Mode       = "Static",
+    Color1     = Color3.fromRGB(255, 255, 255),
+    Color2     = Color3.fromRGB(255, 0, 0),
+    Color3     = Color3.fromRGB(0, 255, 0),
+    HueSpeed   = 0.5,
+    MinAirTime = 0.2,
+    MaxRings   = 12,
+}
+
+JC_conns, JC_draw, JC_free, JC_rings = {}, {}, {}, {}
+JC_charConn = nil
+
+function JC_acquire()
+    local l = table.remove(JC_free)
+    if not l then
+        l = Drawing.new("Line")
+        table.insert(JC_draw, l)
+    end
+    return l
+end
+
+function JC_release(l)
+    l.Visible = false
+    table.insert(JC_free, l)
+end
+
+function JC_killRing(idx)
+    local r = table.remove(JC_rings, idx)
+    if r then
+        for _, l in ipairs(r.lines) do JC_release(l) end
+    end
+end
+
+function JC_spawnRing(pos)
+    if #JC_rings >= JC_Config.MaxRings then JC_killRing(1) end
+    local n = math.clamp(math.floor(JC_Config.Segments), 8, 128)
+    local lines = {}
+    for i = 1, n do lines[i] = JC_acquire() end
+    table.insert(JC_rings, { pos = pos, t0 = tick(), n = n, lines = lines, hue = math.random() })
+end
+
+function JC_groundPos(char, root)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = { char }
+
+    local hit = Workspace:Raycast(root.Position, Vector3.new(0, -20, 0), params)
+    if hit then
+        return hit.Position + Vector3.new(0, 0.1, 0)
+    end
+
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hip = hum and hum.HipHeight or 2
+    return root.Position - Vector3.new(0, hip + root.Size.Y / 2 - 0.1, 0)
+end
+
+function JC_hook(char)
+    if JC_charConn then JC_charConn:Disconnect() JC_charConn = nil end
+
+    local hum = char:WaitForChild("Humanoid", 10)
+    local root = char:WaitForChild("HumanoidRootPart", 10)
+    if not hum or not root then return end
+
+    local airStart = nil
+    JC_charConn = hum.StateChanged:Connect(function(_, new)
+        if new == Enum.HumanoidStateType.Jumping then
+            airStart = tick()
+            if JC_Config.Enabled and JC_Config.OnTakeoff then
+                JC_spawnRing(JC_groundPos(char, root))
+            end
+        elseif new == Enum.HumanoidStateType.Freefall then
+            airStart = airStart or tick()
+        elseif new == Enum.HumanoidStateType.Landed then
+            if JC_Config.Enabled and airStart and (tick() - airStart) >= JC_Config.MinAirTime then
+                JC_spawnRing(JC_groundPos(char, root))
+            end
+            airStart = nil
+        end
+    end)
+end
+
+if LocalPlayer.Character then task.spawn(JC_hook, LocalPlayer.Character) end
+table.insert(JC_conns, LocalPlayer.CharacterAdded:Connect(function(c) task.spawn(JC_hook, c) end))
+
+function JC_project(cam, pos)
+    local s = cam:WorldToViewportPoint(pos)
+    if s.Z > 0 then return Vector2.new(s.X, s.Y) end
+    return nil
+end
+
+table.insert(JC_conns, RunService.RenderStepped:Connect(function()
+    if #JC_rings == 0 then return end
+
+    if not JC_Config.Enabled then
+        for i = #JC_rings, 1, -1 do JC_killRing(i) end
+        return
+    end
+
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+    local now = tick()
+
+    for idx = #JC_rings, 1, -1 do
+        local r = JC_rings[idx]
+        local p = (now - r.t0) / JC_Config.Duration
+
+        if p >= 1 then
+            JC_killRing(idx)
+        else
+            local e = 1 - (1 - p) ^ 3
+            local rad = JC_Config.Radius * e
+            local alpha = 1 - p
+            local thick = math.max(1, JC_Config.Thickness * (1 - p * 0.5))
+            local hueBase = now * JC_Config.HueSpeed + r.hue
+            local rainbow = JC_Config.Mode == "Rainbow"
+
+            local prev = JC_project(cam, r.pos + Vector3.new(rad, 0, 0))
+            for i = 1, r.n do
+                local ang = (i / r.n) * math.pi * 2
+                local cur = JC_project(cam, r.pos + Vector3.new(math.cos(ang) * rad, 0, math.sin(ang) * rad))
+                local line = r.lines[i]
+
+                if prev and cur then
+                    line.From = prev
+                    line.To = cur
+                    
+                    local frac = (i - 1) / r.n
+                    local base_col
+                    if frac < 0.333 then
+                        base_col = JC_Config.Color1
+                    elseif frac < 0.666 then
+                        base_col = JC_Config.Color2
+                    else
+                        base_col = JC_Config.Color3
+                    end
+
+                    if rainbow then
+                        line.Color = base_col:Lerp(Color3.fromHSV((hueBase + frac) % 1, 1, 1), 0.5)
+                    else
+                        line.Color = base_col
+                    end
+
+                    line.Thickness = thick
+                    line.Transparency = alpha
+                    line.Visible = true
+                else
+                    line.Visible = false
+                end
+                prev = cur
+            end
+        end
+    end
+end))
+
+_G.JumpCircles = {
+    Config = JC_Config,
+    Unload = function()
+        for _, c in ipairs(JC_conns) do pcall(function() c:Disconnect() end) end
+        if JC_charConn then pcall(function() JC_charConn:Disconnect() end) end
+        for _, d in ipairs(JC_draw) do pcall(function() d:Remove() end) end
+        JC_conns, JC_draw, JC_free, JC_rings = {}, {}, {}, {}
+        _G.JumpCircles = nil
+    end,
+}
+
+JumpGroup = WorldTab:AddRightGroupbox('Jump')
+
+JumpToggle = JumpGroup:AddToggle('JumpCircles', {
+    Text = 'Jump Circles',
+    Default = JC_Config.Enabled,
+    Tooltip = 'a circle when you land'
+})
+    :AddColorPicker('JumpCirclesColor1', { Default = JC_Config.Color1, Title = 'Color 1' })
+    :AddColorPicker('JumpCirclesColor2', { Default = JC_Config.Color2, Title = 'Color 2' })
+    :AddColorPicker('JumpCirclesColor3', { Default = JC_Config.Color3, Title = 'Color 3' })
+
+JumpDep = JumpGroup:AddDependencyBox()
+
+JumpDep:AddToggle('JumpCirclesTakeoff', {
+    Text = 'On Takeoff',
+    Default = JC_Config.OnTakeoff,
+    Tooltip = 'spawn one when jumping'
+})
+JumpDep:AddSlider('JumpCirclesRadius', {
+    Text = 'Radius',
+    Default = JC_Config.Radius,
+    Min = 1, Max = 50, Rounding = 0, Suffix = ' studs',
+    Tooltip = 'size of the ring'
+})
+JumpDep:AddSlider('JumpCirclesDuration', {
+    Text = 'Duration',
+    Default = JC_Config.Duration,
+    Min = 0.1, Max = 3, Rounding = 1, Suffix = 's',
+    Tooltip = 'How long it takes to expand and fade'
+})
+JumpDep:AddSlider('JumpCirclesThickness', {
+    Text = 'Thickness',
+    Default = JC_Config.Thickness,
+    Min = 1, Max = 10, Rounding = 0, Suffix = 'px',
+    Tooltip = 'Thickness of the lines'
+})
+
+JumpDep:SetupDependencies({
+    { JumpToggle, true },
+})
+
+Toggles.JumpCircles:OnChanged(function(v)
+    JC_Config.Enabled = v
+end)
+
+Toggles.JumpCirclesTakeoff:OnChanged(function(v)
+    JC_Config.OnTakeoff = v
+end)
+
+Options.JumpCirclesColor1:OnChanged(function(v)
+    JC_Config.Color1 = v
+end)
+Options.JumpCirclesColor2:OnChanged(function(v)
+    JC_Config.Color2 = v
+end)
+Options.JumpCirclesColor3:OnChanged(function(v)
+    JC_Config.Color3 = v
+end)
+
+Options.JumpCirclesRadius:OnChanged(function(v)
+    JC_Config.Radius = v
+end)
+Options.JumpCirclesDuration:OnChanged(function(v)
+    JC_Config.Duration = v
+end)
+Options.JumpCirclesThickness:OnChanged(function(v)
+    JC_Config.Thickness = v
+end)
+
+_48:OnUnload(function()
+    if _G.JumpCircles and _G.JumpCircles.Unload then
+        _G.JumpCircles.Unload()
+    end
+end)
+
 EffectsSection = WorldTab:AddRightGroupbox('Effects')
 
 BloomEffect = nil
@@ -3029,7 +4914,7 @@ PullGroupbox = Ragebot:AddLeftGroupbox('Pull To Me')
 PullToMeToggle = PullGroupbox:AddToggle('PullToMe', {
     Text = 'Pull To Me',
     Default = false,
-    Tooltip = 'pulls the target infront of u - mainly works in ZHD',
+    Tooltip = 'pulls the target infront of u - patched now works in random hoods',
     Searchable = true,
 })
 
@@ -3084,6 +4969,13 @@ PredictionB:AddSlider('ResolverSmoothing', {
     Max = 1.0,
     Rounding = 2,
     Tooltip = 'how new velocity samples replace the old ones.',
+})
+
+PredictionB:AddDropdown('ResolverMode', {
+    Text = 'Resolver Mode',
+    Values = { 'velocity', 'cluster' },
+    Default = 'velocity',
+    Tooltip = 'velo = good, cluster = real good',
 })
 
 PredictionB:AddToggle('PredictionToggle', {
@@ -3231,7 +5123,7 @@ shared.hitman = {
 local _61 = _60.Main:AddLeftTabbox()
 local _62 = _61:AddTab('Main')
 _visualizer = _61:AddTab('Visualizer')
-
+_iwanttodiekillmenowimworthless = _61:AddTab('Crosshair')
 
 -- la CIRCLE FOV CORE --
 _G.FOV = _G.FOV or {}
@@ -3673,6 +5565,302 @@ _48:OnUnload(function()
     _G.FOV.Destroy()
 end)
 
+_G.X = _G.X or {}
+_G.X.on = _G.X.on or false
+_G.X.outline = _G.X.outline or true
+_G.X.rot = _G.X.rot or 360
+_G.X.sspd = _G.X.sspd or 0.1
+_G.X.bnc = _G.X.bnc or 0
+_G.X.bspd = _G.X.bspd or 0.1
+_G.X.off = _G.X.off or 65
+_G.X.len = _G.X.len or 278
+_G.X.thick = _G.X.thick or 1
+_G.X.lerp = _G.X.lerp or 1
+_G.X.cols = _G.X.cols or {Color3.fromRGB(255,255,255),Color3.fromRGB(255,255,255),Color3.fromRGB(255,255,255),Color3.fromRGB(255,255,255)}
+_G.X.ocols = _G.X.ocols or {Color3.fromRGB(0,0,0),Color3.fromRGB(0,0,0),Color3.fromRGB(0,0,0),Color3.fromRGB(0,0,0)}
+_G.X.pos = _G.X.pos or "On Target"
+_G.X.fspd = _G.X.fspd or 0.25
+_G.X.mspd = _G.X.mspd or 1
+_G.X.fm = _G.X.fm or false
+_G.X.smc = _G.X.smc or nil
+_G.X.smt = _G.X.smt or nil
+_G.X.lt = _G.X.lt or nil
+_G.X.rcur = _G.X.rcur or 0
+_G.X.gcur = _G.X.gcur or 65
+
+X_ANG = {0, 90, 180, 270}
+X_a, X_o = {}, {}
+
+for i = 1, 4 do
+    X_o[i] = Drawing.new("Line")
+    X_o[i].Visible = false
+    X_a[i] = Drawing.new("Line")
+    X_a[i].Visible = false
+end
+
+function _G.X.Ease(t)
+    return t < 0.5 and 4 * t * t * t or 1 - math.pow(-2 * t + 2, 3) / 2
+end
+
+function _G.X.Center()
+    local cam = Workspace.CurrentCamera
+    if not cam then return Vector2.new(0, 0), false end
+
+    local fb
+    if _G.X.fm then
+        local m = UserInputService:GetMouseLocation()
+        fb = Vector2.new(m.X, m.Y)
+    else
+        fb = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+    end
+
+    if not _G.X.smc then
+        _G.X.smc = fb
+    end
+    if not _G.X.smt then
+        _G.X.smt = fb
+    end
+
+    local ht, t2 = false, nil
+
+    if _G.X.pos == "On Target" and _G.HitmanCurrentTarget then
+        local p = _G.HitmanCurrentTarget
+        if p and p.Parent and p.Character then
+            if _G.X.lt ~= p then
+                _G.X.lt = p
+            end
+            local h = p.Character:FindFirstChild("Head") or p.Character:FindFirstChild("HumanoidRootPart")
+            if h then
+                local s, os = cam:WorldToViewportPoint(h.Position)
+                if os and s.Z > 0 then
+                    t2 = Vector2.new(s.X, s.Y)
+                    ht = true
+                end
+            end
+        end
+    else
+        _G.X.lt = nil
+    end
+
+    local lf = math.clamp(_G.X.lerp * 0.08, 0.05, 1)
+
+    if ht then
+        _G.X.smt = _G.X.smt:Lerp(t2, lf)
+        _G.X.smc = _G.X.smc:Lerp(_G.X.smt, _G.X.fspd)
+        
+        if (_G.X.smc - _G.X.smt).Magnitude < 0.05 then 
+            _G.X.smc = _G.X.smt 
+        end
+        return _G.X.smc, true
+    else
+        -- Mouse follow smoothing logic
+        local speed = _G.X.mspd
+        if speed >= 0.99 then
+            _G.X.smc = fb
+            _G.X.smt = fb
+        else
+            local mouse_lerp = 1 - math.pow(1 - speed, 0.05)
+            _G.X.smt = _G.X.smt:Lerp(fb, mouse_lerp)
+            _G.X.smc = _G.X.smc:Lerp(_G.X.smt, 1)
+        end
+
+        if (_G.X.smc - fb).Magnitude < 0.5 then
+            _G.X.smc = fb
+            _G.X.smt = fb
+        end
+        return _G.X.smc, false
+    end
+end
+
+_G.X.cn = RunService.RenderStepped:Connect(function(dt)
+    if not _G.X.on then
+        for i = 1, 4 do
+            X_a[i].Visible = false
+            X_o[i].Visible = false
+        end
+        return
+    end
+
+    local c, ht = _G.X.Center()
+    
+    local sp = _G.X.sspd * 90
+    if sp > 0 then
+        _G.X.rcur = (_G.X.rcur + sp * dt) % 360
+    else
+        _G.X.rcur = _G.X.rot % 360
+    end
+
+    local tg = _G.X.off
+    if _G.X.bnc > 0 then
+        local t = (math.sin(tick() * _G.X.bspd) + 1) / 2
+        tg = _G.X.off + (_G.X.bnc * t)
+    end
+    
+    _G.X.gcur = _G.X.gcur + (tg - _G.X.gcur) * math.min(1, dt * 15)
+
+    local th = math.max(1, _G.X.thick)
+
+    for i = 1, 4 do
+        local an = math.rad(X_ANG[i] + _G.X.rcur)
+        local d = Vector2.new(math.cos(an), math.sin(an))
+        local sp = c + d * _G.X.gcur
+        local ep = c + d * (_G.X.gcur + _G.X.len)
+
+        if _G.X.outline then
+            X_o[i].From = sp
+            X_o[i].To = ep
+            X_o[i].Color = _G.X.ocols[i]
+            X_o[i].Thickness = th + 2
+            X_o[i].Visible = true
+        else
+            X_o[i].Visible = false
+        end
+
+        X_a[i].From = sp
+        X_a[i].To = ep
+        X_a[i].Color = _G.X.cols[i]
+        X_a[i].Thickness = th
+        X_a[i].Visible = true
+    end
+end)
+
+X_ct = _iwanttodiekillmenowimworthless:AddToggle('CrossEnabled', {
+    Text = 'enabled',
+    Default = _G.X.on,
+    Tooltip = 'Toggles the custom crosshair on or off',
+})
+    :AddColorPicker('CrossColor1', { Default = _G.X.cols[1], Title = 'Color 1' })
+    :AddColorPicker('CrossColor2', { Default = _G.X.cols[2], Title = 'Color 2' })
+    :AddColorPicker('CrossColor3', { Default = _G.X.cols[3], Title = 'Color 3' })
+    :AddColorPicker('CrossColor4', { Default = _G.X.cols[4], Title = 'Color 4' })
+
+X_ot = _iwanttodiekillmenowimworthless:AddToggle('CrossOutline', {
+    Text = 'outline',
+    Default = _G.X.outline,
+    Tooltip = 'Draws a black outline behind the crosshair lines',
+})
+    :AddColorPicker('CrossOutlineColor1', { Default = _G.X.ocols[1], Title = 'Color 1' })
+    :AddColorPicker('CrossOutlineColor2', { Default = _G.X.ocols[2], Title = 'Color 2' })
+    :AddColorPicker('CrossOutlineColor3', { Default = _G.X.ocols[3], Title = 'Color 3' })
+    :AddColorPicker('CrossOutlineColor4', { Default = _G.X.ocols[4], Title = 'Color 4' })
+
+_iwanttodiekillmenowimworthless:AddSlider('CrossRotation', { 
+    Text = 'rotation', 
+    Default = _G.X.rot, 
+    Min = 0, Max = 360, Rounding = 0, Suffix = '°', Compact = true,
+    Tooltip = 'The maximum angle the crosshair can rotate'
+})
+_iwanttodiekillmenowimworthless:AddSlider('CrossSpinSpeed', { 
+    Text = 'speed', 
+    Default = _G.X.sspd, 
+    Min = 0, Max = 5, Rounding = 1, Suffix = 'rps', Compact = true,
+    Tooltip = 'How fast the crosshair spins continuously'
+})
+_iwanttodiekillmenowimworthless:AddSlider('CrossBounce', { 
+    Text = 'bounce', 
+    Default = _G.X.bnc, 
+    Min = 0, Max = 100, Rounding = 0, Suffix = 'px', Compact = true,
+    Tooltip = 'How far the crosshair arms move in and out'
+})
+_iwanttodiekillmenowimworthless:AddSlider('CrossBounceSpeed', { 
+    Text = 'speed', 
+    Default = _G.X.bspd, 
+    Min = 0, Max = 5, Rounding = 1, Compact = true,
+    Tooltip = 'How fast the bounce animation plays'
+})
+_iwanttodiekillmenowimworthless:AddSlider('CrossOffset', { 
+    Text = 'offset', 
+    Default = _G.X.off, 
+    Min = 0, Max = 200, Rounding = 0, Suffix = 'px', Compact = true,
+    Tooltip = 'Distance from the center before the crosshair starts'
+})
+_iwanttodiekillmenowimworthless:AddSlider('CrossLength', { 
+    Text = 'length', 
+    Default = _G.X.len, 
+    Min = 1, Max = 500, Rounding = 0, Suffix = 'px', Compact = true,
+    Tooltip = 'The size/length of the crosshair lines'
+})
+_iwanttodiekillmenowimworthless:AddSlider('CrossThickness', { 
+    Text = 'thickness', 
+    Default = _G.X.thick, 
+    Min = 1, Max = 10, Rounding = 0, Suffix = 'px', Compact = true,
+    Tooltip = 'How thick the lines are'
+})
+_iwanttodiekillmenowimworthless:AddSlider('CrossLerp', { 
+    Text = 'lerp', 
+    Default = _G.X.lerp, 
+    Min = 1, Max = 10, Rounding = 1, Suffix = 'x', Compact = true,
+    Tooltip = 'Smoothness of the crosshair when following the target'
+})
+
+X_cs = _iwanttodiekillmenowimworthless:AddDependencyBox()
+
+X_cs:AddDropdown('CrossPositionMode', {
+    Text = 'position',
+    Values = { 'Center', 'On Target' },
+    Default = _G.X.pos,
+    Tooltip = 'Choose whether the crosshair stays centered or follows your target'
+})
+X_cs:AddToggle('CrossFollowMouse', {
+    Text = 'follow mouse',
+    Default = _G.X.fm,
+    Tooltip = 'Makes the crosshair follow your mouse cursor'
+})
+X_cs:AddSlider('CrossMouseSpeed', {
+    Text = 'mouse speed',
+    Default = _G.X.mspd,
+    Min = 0.05, Max = 1, Rounding = 2,
+    Compact = true,
+    Tooltip = 'How fast the crosshair follows the mouse. 1 = instant'
+})
+X_cs:AddSlider('CrossFollowSpeed', {
+    Text = 'follow speed',
+    Default = _G.X.fspd,
+    Min = 0.05, Max = 1, Rounding = 2,
+    Compact = true,
+    Tooltip = 'How fast the crosshair snaps to the target'
+})
+
+X_cs:SetupDependencies({
+    { X_ct, true },
+})
+
+Toggles.CrossEnabled:OnChanged(function(v) _G.X.on = v end)
+Toggles.CrossOutline:OnChanged(function(v) _G.X.outline = v end)
+Toggles.CrossFollowMouse:OnChanged(function(v) _G.X.fm = v end)
+
+Options.CrossColor1:OnChanged(function(v) _G.X.cols[1] = v end)
+Options.CrossColor2:OnChanged(function(v) _G.X.cols[2] = v end)
+Options.CrossColor3:OnChanged(function(v) _G.X.cols[3] = v end)
+Options.CrossColor4:OnChanged(function(v) _G.X.cols[4] = v end)
+Options.CrossOutlineColor1:OnChanged(function(v) _G.X.ocols[1] = v end)
+Options.CrossOutlineColor2:OnChanged(function(v) _G.X.ocols[2] = v end)
+Options.CrossOutlineColor3:OnChanged(function(v) _G.X.ocols[3] = v end)
+Options.CrossOutlineColor4:OnChanged(function(v) _G.X.ocols[4] = v end)
+
+Options.CrossRotation:OnChanged(function(v) _G.X.rot = v end)
+Options.CrossSpinSpeed:OnChanged(function(v) _G.X.sspd = v end)
+Options.CrossBounce:OnChanged(function(v) _G.X.bnc = v end)
+Options.CrossBounceSpeed:OnChanged(function(v) _G.X.bspd = v end)
+Options.CrossOffset:OnChanged(function(v) _G.X.off = v end)
+Options.CrossLength:OnChanged(function(v) _G.X.len = v end)
+Options.CrossThickness:OnChanged(function(v) _G.X.thick = v end)
+Options.CrossLerp:OnChanged(function(v) _G.X.lerp = v end)
+Options.CrossPositionMode:OnChanged(function(v) _G.X.pos = v end)
+Options.CrossMouseSpeed:OnChanged(function(v) _G.X.mspd = v end)
+Options.CrossFollowSpeed:OnChanged(function(v) _G.X.fspd = v end)
+
+_48:OnUnload(function()
+    if _G.X.cn then
+        _G.X.cn:Disconnect()
+        _G.X.cn = nil
+    end
+    for i = 1, 4 do
+        pcall(function() X_a[i]:Remove() end)
+        pcall(function() X_o[i]:Remove() end)
+    end
+end)
+
 _G.AimMethod = 'Silent Aim'
 _G.AimSmoothness = 0.25
 _G.AimTargetPart = 'Head'
@@ -4055,6 +6243,7 @@ HitEffects.Styles = Options.HitEffectStyleDropdown.Value
 if typeof(Options.HitEffectColorPicker.Value) == "Color3" then
     HitEffects.Color = Options.HitEffectColorPicker.Value
 end
+
 HitChams = HitChams or {
     Enabled = false,
     Animation = "new fade",
@@ -4173,6 +6362,290 @@ task.spawn(function()
                 end
             end
         end
+    end
+end)
+
+HitSkeleton = HitSkeleton or {
+    Enabled = false,
+    Fade = true,
+    Animation = "fade",
+    Lifetime = 0.8,
+    Thickness = 3,
+    Transparency = 0,
+    Color = Color3.fromRGB(142, 242, 255),
+    Active = {},
+}
+
+if getgenv then getgenv().HitSkeleton = HitSkeleton end
+_G.HitSkeleton = HitSkeleton
+
+HS = HitSkeleton
+
+HS_BONES = {
+    { key = "head_to_neck",                   from = "Head",          fromOff = Vector3.new(0, -0.8, 0),  to = "Head",          toOff = Vector3.new(0, -1.4, 0) },
+    { key = "neck_to_left_shoulder",          from = "Head",          fromOff = Vector3.new(0, -1.2, 0),  to = "LeftUpperArm",  toOff = Vector3.new(0, 0.5, 0) },
+    { key = "neck_to_right_shoulder",         from = "Head",          fromOff = Vector3.new(0, -1.2, 0),  to = "RightUpperArm", toOff = Vector3.new(0, 0.5, 0) },
+    { key = "left_shoulder_to_upper_arm",     from = "LeftUpperArm",  fromOff = Vector3.new(0, 0.5, 0),   to = "LeftUpperArm",  toOff = Vector3.new(0, -0.5, 0) },
+    { key = "right_shoulder_to_upper_arm",    from = "RightUpperArm", fromOff = Vector3.new(0, 0.5, 0),   to = "RightUpperArm", toOff = Vector3.new(0, -0.5, 0) },
+    { key = "left_upper_arm_to_lower_arm",    from = "LeftUpperArm",  fromOff = Vector3.new(0, -0.5, 0),  to = "LeftLowerArm",  toOff = Vector3.new(0, 0.5, 0) },
+    { key = "right_upper_arm_to_lower_arm",   from = "RightUpperArm", fromOff = Vector3.new(0, -0.5, 0),  to = "RightLowerArm", toOff = Vector3.new(0, 0.5, 0) },
+    { key = "left_lower_arm_to_hand",         from = "LeftLowerArm",  fromOff = Vector3.new(0, 0.4, 0),   to = "LeftHand",      toOff = Vector3.new(0, 0, 0) },
+    { key = "right_lower_arm_to_hand",        from = "RightLowerArm", fromOff = Vector3.new(0, 0.4, 0),   to = "RightHand",     toOff = Vector3.new(0, 0, 0) },
+    { key = "neck_to_lower_torso",            from = "Head",          fromOff = Vector3.new(0, -1.2, 0),  to = "LowerTorso",    toOff = Vector3.new(0, 0, 0) },
+    { key = "lower_torso_to_left_upper_leg",  from = "LowerTorso",    fromOff = Vector3.new(0, 0, 0),     to = "LeftUpperLeg",  toOff = Vector3.new(0, 0.5, 0) },
+    { key = "lower_torso_to_right_upper_leg", from = "LowerTorso",    fromOff = Vector3.new(0, 0, 0),     to = "RightUpperLeg", toOff = Vector3.new(0, 0.5, 0) },
+    { key = "left_upper_leg_to_lower_leg",    from = "LeftUpperLeg",  fromOff = Vector3.new(0, 0.5, 0),   to = "LeftLowerLeg",  toOff = Vector3.new(0, 0.5, 0) },
+    { key = "right_upper_leg_to_lower_leg",   from = "RightUpperLeg", fromOff = Vector3.new(0, 0.5, 0),   to = "RightLowerLeg", toOff = Vector3.new(0, 0.5, 0) },
+    { key = "left_lower_leg_to_foot",         from = "LeftLowerLeg",  fromOff = Vector3.new(0, 0.4, 0),   to = "LeftFoot",      toOff = Vector3.new(0, 0, 0) },
+    { key = "right_lower_leg_to_foot",        from = "RightLowerLeg", fromOff = Vector3.new(0, 0.4, 0),   to = "RightFoot",     toOff = Vector3.new(0, 0, 0) },
+}
+
+HitSkeleton.Heartbeat = {}
+
+function HitSkeleton.CreateLine()
+    local ok, ln = pcall(function() return Drawing.new("Line") end)
+    if not ok or not ln then return nil end
+    local S = (getgenv and getgenv().HitSkeleton) or HS
+    ln.Color = S.Color
+    ln.Thickness = S.Thickness
+    ln.Transparency = S.Transparency
+    ln.Visible = false
+    return ln
+end
+
+function HitSkeleton.Run(player)
+    local S = (getgenv and getgenv().HitSkeleton) or HS
+    if not S.Enabled then return end
+    if not player or not player.Character then return end
+
+    local character = player.Character
+    if not character.Parent then return end
+
+    local partNames = {
+        "Head","LeftUpperArm","RightUpperArm","LeftLowerArm","RightLowerArm",
+        "LeftHand","RightHand","LowerTorso","LeftUpperLeg","RightUpperLeg",
+        "LeftLowerLeg","RightLowerLeg","LeftFoot","RightFoot",
+    }
+
+    local parts = {}
+    local cframes = {}
+    for _, name in ipairs(partNames) do
+        local p = character:FindFirstChild(name)
+        if p then
+            parts[name] = p
+            cframes[name] = p.CFrame
+        end
+    end
+
+    local lines = {}
+    for _, b in ipairs(HS_BONES) do
+        local ln = HitSkeleton.CreateLine()
+        if ln then
+            ln.Color = S.Color
+            ln.Thickness = S.Thickness
+            ln.Transparency = S.Transparency
+            ln.Visible = false
+            lines[b.key] = ln
+        end
+    end
+
+    local camera = workspace.CurrentCamera
+
+    local draw = function()
+        if not camera then camera = workspace.CurrentCamera end
+        for _, b in ipairs(HS_BONES) do
+            local ln = lines[b.key]
+            if ln then
+                ln.Visible = false
+                local fromCF = cframes[b.from]
+                local toCF = cframes[b.to]
+                if fromCF and toCF then
+                    local fromPos = fromCF:PointToWorldSpace(b.fromOff)
+                    local toPos = toCF:PointToWorldSpace(b.toOff)
+                    local fp, fv = camera:WorldToViewportPoint(fromPos)
+                    local tp, tv = camera:WorldToViewportPoint(toPos)
+                    if fv and tv then
+                        ln.Visible = true
+                        ln.From = Vector2.new(fp.X, fp.Y)
+                        ln.To = Vector2.new(tp.X, tp.Y)
+                    end
+                end
+            end
+        end
+    end
+
+    HitSkeleton.Heartbeat[#HitSkeleton.Heartbeat + 1] = draw
+
+    task.wait(S.Lifetime)
+
+    if S.Animation == "fade" then
+        for _, ln in pairs(lines) do
+            task.spawn(function()
+                local start = ln.Transparency
+                local steps = 12
+                for i = 1, steps do
+                    local a = i / steps
+                    local eased = TweenService:GetValue(a, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+                    ln.Transparency = start + (1 - start) * eased
+                    task.wait(0.2 / steps)
+                end
+            end)
+        end
+        task.wait(0.2)
+    end
+
+    for i = #HitSkeleton.Heartbeat, 1, -1 do
+        if HitSkeleton.Heartbeat[i] == draw then
+            table.remove(HitSkeleton.Heartbeat, i)
+            break
+        end
+    end
+
+    for _, ln in pairs(lines) do
+        pcall(function() ln:Remove() end)
+    end
+end
+
+function HitSkeleton.Cleanup()
+    for _, ln in ipairs(HitSkeleton.Heartbeat) do
+        pcall(function() ln() end)
+    end
+    table.clear(HitSkeleton.Heartbeat)
+end
+
+if _48 and _48.OnUnload then
+    _48:OnUnload(HitSkeleton.Cleanup)
+end
+
+_HS_uiOk, _HS_uiErr = pcall(function()
+    local targetTab = _G._67
+    if not targetTab then error("_67 tab not available yet") end
+
+    local t0 = tick()
+    while not (HitSkeleton or (getgenv and getgenv().HitSkeleton)) and tick() - t0 < 15 do
+        task.wait(0.2)
+    end
+
+    HitSkeleton = HitSkeleton or (getgenv and getgenv().HitSkeleton)
+    if not HitSkeleton then
+        error("HitSkeleton module never loaded")
+    end
+
+    getgenv().HitSkeleton = HitSkeleton
+    _G.HitSkeleton = HitSkeleton
+
+    HitSkeleton.Toggle = targetTab:AddToggle("HitSkeleton", {
+        Text = "Hit Skeleton",
+        Default = false,
+    })
+
+    HitSkeleton.Toggle:AddColorPicker("HitSkeletonColor", {
+        Default = Color3.fromRGB(142, 242, 255),
+        Title = "Color",
+        Transparency = 0,
+    })
+
+    local Settings = HitSkeleton.Toggle:AddSettings({
+        Title = 'Hit Skeleton Settings',
+        Width = 200,
+    })
+
+    Settings:AddDropdown("HitSkeletonAnimation", {
+        Text = "Animation",
+        Default = "Fade",
+        Values = { "Fade", "None" },
+    })
+
+    Settings:AddSlider("HitSkeletonLifetime", {
+        Text = "Lifetime",
+        Default = 0.8,
+        Min = 0.1,
+        Max = 2,
+        Rounding = 1,
+        Suffix = "s",
+    })
+
+    Settings:AddSlider("HitSkeletonThickness", {
+        Text = "Thickness",
+        Default = 3,
+        Min = 1,
+        Max = 10,
+        Rounding = 0,
+    })
+
+    if Options.HitSkeletonColor then
+        HitSkeleton.Color = Options.HitSkeletonColor.Value
+        if typeof(Options.HitSkeletonColor.Transparency) == "number" then
+            HitSkeleton.Transparency = Options.HitSkeletonColor.Transparency
+        end
+    end
+    if Options.HitSkeletonThickness then
+        HitSkeleton.Thickness = Options.HitSkeletonThickness.Value
+    end
+    if Options.HitSkeletonLifetime then
+        HitSkeleton.Lifetime = Options.HitSkeletonLifetime.Value
+    end
+end)
+
+if not _HS_uiOk then
+    warn("setup skipped: " .. tostring(_HS_uiErr))
+end
+
+pcall(function()
+    if not HitSkeleton then
+        HitSkeleton = (getgenv and getgenv().HitSkeleton) or _G.HitSkeleton
+    end
+    if not HitSkeleton then return end
+
+    if Toggles.HitSkeleton then
+        Toggles.HitSkeleton:OnChanged(function(value)
+            HitSkeleton.Enabled = value
+            if not value then HitSkeleton.Cleanup() end
+        end)
+    end
+
+    if Options.HitSkeletonAnimation then
+        local function applyAnimation(value)
+            HitSkeleton.Animation = (value == "Fade") and "fade" or "none"
+        end
+        Options.HitSkeletonAnimation:OnChanged(applyAnimation)
+        applyAnimation(Options.HitSkeletonAnimation.Value)
+    end
+
+    if Options.HitSkeletonLifetime then
+        Options.HitSkeletonLifetime:OnChanged(function(value)
+            HitSkeleton.Lifetime = value
+        end)
+    end
+
+    if Options.HitSkeletonThickness then
+        Options.HitSkeletonThickness:OnChanged(function(value)
+            HitSkeleton.Thickness = value
+        end)
+    end
+
+    if Options.HitSkeletonColor then
+        Options.HitSkeletonColor:OnChanged(function(value)
+            HitSkeleton.Color = value
+        end)
+    end
+end)
+
+_G._HS_WATCH_RUNNING = true
+task.spawn(function()
+    while _G._HS_WATCH_RUNNING and task.wait(0.2) do
+        if HitSkeleton and Options.HitSkeletonColor then
+            local t = Options.HitSkeletonColor.Transparency
+            if typeof(t) == "number" and t ~= HitSkeleton.Transparency then
+                HitSkeleton.Transparency = t
+            end
+        end
+    end
+end)
+
+_G._HS_RENDER = RunService.RenderStepped:Connect(function()
+    for i = 1, #HitSkeleton.Heartbeat do
+        pcall(HitSkeleton.Heartbeat[i])
     end
 end)
 
@@ -6223,20 +8696,33 @@ local _ESPEnabled = _78:AddToggle('ESPEnabled', {
     Default = true,
     Searchable = true,
 })
-_78:AddToggle('ESPShowNames', {
+Payernamestoggle = _78:AddToggle('ESPShowNames', {
     Text = 'Player Names',
     Default = true,
     Searchable = true,
 })
-_78:AddToggle('ESPShowDistance', {
+Distancetoggleesp = _78:AddToggle('ESPShowDistance', {
     Text = 'Distance',
     Default = false,
     Searchable = true,
 })
-_78:AddToggle('ESPShowHealth', {
+healthtogglehealth = _78:AddToggle('ESPShowHealth', {
     Text = 'Health',
     Default = false,
     Searchable = true,
+})
+
+Payernamestoggle:AddColorPicker('ESPNameColor', {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = 'Name Color',
+})
+Distancetoggleesp:AddColorPicker('ESPDistanceColor', {
+    Default = Color3.fromRGB(200, 200, 200),
+    Title = 'Distance Color',
+})
+healthtogglehealth:AddColorPicker('ESPHealthColor', {
+    Default = Color3.fromRGB(200, 200, 200),
+    Title = 'Health Color',
 })
 
 _G.box_esp_color = _G.box_esp_color or Color3.fromRGB(255, 255, 255)
@@ -6933,6 +9419,387 @@ Options.ChinaHatSpeed:OnChanged(function(value)
     ChinaHat:setSpeed(value)
 end)
 
+-- halo core
+if _G.Halo and _G.Halo.Unload then
+    pcall(_G.Halo.Unload)
+end
+
+_G.Halo = _G.Halo or {}
+_G.Halo.othersOn = false
+_G.Halo.selfOn = false
+_G.Halo.c1 = Color3.fromRGB(255, 215, 0)
+_G.Halo.c2 = Color3.fromRGB(255, 255, 150)
+_G.Halo.c3 = Color3.fromRGB(218, 165, 32)
+_G.Halo.c4 = Color3.fromRGB(255, 255, 255)
+
+_G.Halo.radius = 1.2
+_G.Halo.width = 0.35
+_G.Halo.height = 1.6
+_G.Halo.tilt = 15
+_G.Halo.speed = 0.4
+_G.Halo.glow = 0.6
+_G.Halo.rayCount = 16
+_G.Halo.rayLength = 0.8
+_G.Halo.outlineColor = Color3.fromRGB(0, 0, 0)
+
+HL_conn = nil
+HL_entries = {}
+HL_cols = {}
+HL_inA, HL_outA, HL_okA = {}, {}, {}
+HL_inB, HL_outB, HL_okB = {}, {}, {}
+HL_inG, HL_outG, HL_okG = {}, {}, {}
+
+HL_Players = Players
+HL_lp = LocalPlayer
+
+local R_SEGMENTS = 36
+
+function HL_color(progress, time)
+    local s = (progress + time * _G.Halo.speed) % 1
+    if s < 0.25 then return _G.Halo.c1:Lerp(_G.Halo.c2, s / 0.25)
+    elseif s < 0.5 then return _G.Halo.c2:Lerp(_G.Halo.c3, (s - 0.25) / 0.25)
+    elseif s < 0.75 then return _G.Halo.c3:Lerp(_G.Halo.c4, (s - 0.5) / 0.25)
+    else return _G.Halo.c4:Lerp(_G.Halo.c1, (s - 0.75) / 0.25) end
+end
+
+function HL_unit(v)
+    local m = v.Magnitude
+    if m < 0.001 then return Vector2.new(0, 0) end
+    return v / m
+end
+
+function HL_newQuad(z)
+    local q = Drawing.new("Quad")
+    q.Filled = true
+    q.ZIndex = z
+    q.Visible = false
+    return q
+end
+
+function HL_newLine(z)
+    local l = Drawing.new("Line")
+    l.Thickness = 3
+    l.ZIndex = z
+    l.Visible = false
+    return l
+end
+
+function HL_getEntry(key)
+    local e = HL_entries[key]
+    if e then return e end
+
+    e = { 
+        quads = {}, 
+        outlineQuads = {},
+        glow = {}, 
+        rays = {}, 
+        shown = false, 
+        phase = math.random() * math.pi * 2 
+    }
+    
+    for i = 1, R_SEGMENTS do 
+        e.quads[i] = HL_newQuad(3) 
+        e.outlineQuads[i] = HL_newQuad(2)
+        e.glow[i] = HL_newQuad(1)
+    end
+    
+    for i = 1, 36 do
+        e.rays[i] = HL_newLine(2)
+    end
+    
+    HL_entries[key] = e
+    return e
+end
+
+function HL_hide(e)
+    if not e.shown then return end
+    for _, q in ipairs(e.quads) do q.Visible = false end
+    for _, q in ipairs(e.outlineQuads) do q.Visible = false end
+    for _, q in ipairs(e.glow) do q.Visible = false end
+    for _, r in ipairs(e.rays) do r.Visible = false end
+    e.shown = false
+end
+
+function HL_destroyEntry(key)
+    local e = HL_entries[key]
+    if not e then return end
+    for _, q in ipairs(e.quads) do pcall(function() q:Remove() end) end
+    for _, q in ipairs(e.outlineQuads) do pcall(function() q:Remove() end) end
+    for _, q in ipairs(e.glow) do pcall(function() q:Remove() end) end
+    for _, r in ipairs(e.rays) do pcall(function() r:Remove() end) end
+    HL_entries[key] = nil
+end
+
+function HL_destroyAll()
+    for key in pairs(HL_entries) do HL_destroyEntry(key) end
+end
+
+function HL_project(cam, cf, r0, r1, inArr, outArr, okArr)
+    for i = 1, R_SEGMENTS do
+        local a = (i - 1) / R_SEGMENTS * math.pi * 2
+        local c, s = math.cos(a), math.sin(a)
+        local pi_ = cam:WorldToViewportPoint(cf:PointToWorldSpace(Vector3.new(c * r0, 0, s * r0)))
+        local po = cam:WorldToViewportPoint(cf:PointToWorldSpace(Vector3.new(c * r1, 0, s * r1)))
+        inArr[i] = Vector2.new(pi_.X, pi_.Y)
+        outArr[i] = Vector2.new(po.X, po.Y)
+        okArr[i] = pi_.Z > 0.1 and po.Z > 0.1
+    end
+end
+
+function HL_fill(quads, inArr, outArr, okArr, alpha, solidColor)
+    for i = 1, R_SEGMENTS do
+        local j = (i % R_SEGMENTS) + 1
+        local q = quads[i]
+        if okArr[i] and okArr[j] then
+            local A, B, C, D = inArr[i], outArr[i], outArr[j], inArr[j]
+            local dIn = HL_unit(D - A) * 0.5
+            local dOut = HL_unit(C - B) * 0.5
+            
+            q.PointA = A - dIn
+            q.PointB = B - dOut
+            q.PointC = C + dOut
+            q.PointD = D + dIn
+            q.Color = solidColor or HL_cols[i]
+            q.Transparency = alpha
+            q.Visible = true
+        else
+            q.Visible = false
+        end
+    end
+end
+
+function HL_drawRays(e, cam, cf, now)
+    for i = 1, 36 do
+        local line = e.rays[i]
+        if i <= _G.Halo.rayCount then
+            local ang = (i / _G.Halo.rayCount) * math.pi * 2
+            local c, s = math.cos(ang), math.sin(ang)
+            
+            local pulse = (math.sin(now * 4 + i) + 1) * 0.5
+            local rayLen = _G.Halo.rayLength * (0.5 + 0.5 * pulse)
+            
+            local p1 = cf:PointToWorldSpace(Vector3.new(c * (_G.Halo.radius + 0.2), 0, s * (_G.Halo.radius + 0.2)))
+            local p2 = cf:PointToWorldSpace(Vector3.new(c * (_G.Halo.radius + rayLen), 0, s * (_G.Halo.radius + rayLen)))
+            
+            local s1 = cam:WorldToViewportPoint(p1)
+            local s2 = cam:WorldToViewportPoint(p2)
+            
+            if s1.Z > 0.1 and s2.Z > 0.1 then
+                line.From = Vector2.new(s1.X, s1.Y)
+                line.To = Vector2.new(s2.X, s2.Y)
+                line.Color = HL_cols[i]
+                line.Thickness = 3
+                line.Transparency = 0.3 + 0.7 * pulse
+                line.Visible = true
+            else
+                line.Visible = false
+            end
+        else
+            line.Visible = false
+        end
+    end
+end
+
+function HL_drawHalo(e, head, cam, now)
+    local look = head.CFrame.LookVector
+    local flat = Vector3.new(look.X, 0, look.Z)
+    if flat.Magnitude < 0.05 then flat = Vector3.new(0, 0, -1) else flat = flat.Unit end
+
+    local bob = math.sin(now * 1.8 + e.phase) * 0.1
+    local wob = math.sin(now * 1.3 + e.phase * 2) * 0.05
+    local center = head.Position + Vector3.new(0, _G.Halo.height + bob, 0)
+    local cf = CFrame.new(center) * CFrame.lookAt(Vector3.new(0, 0, 0), flat) * CFrame.Angles(math.rad(_G.Halo.tilt) + wob, 0, wob * 0.7)
+
+    for i = 1, R_SEGMENTS do
+        HL_cols[i] = HL_color((i - 0.5) / R_SEGMENTS, now)
+    end
+
+    if _G.Halo.glow > 0.01 then
+        HL_project(cam, cf, _G.Halo.radius - _G.Halo.width/2 - 0.3, _G.Halo.radius + _G.Halo.width/2 + 0.3, HL_inG, HL_outG, HL_okG)
+        HL_fill(e.glow, HL_inG, HL_outG, HL_okG, 0.2 * _G.Halo.glow)
+    else
+        for _, q in ipairs(e.glow) do q.Visible = false end
+    end
+    
+    HL_project(cam, cf, _G.Halo.radius - _G.Halo.width/2 - 0.08, _G.Halo.radius + _G.Halo.width/2 + 0.08, HL_inB, HL_outB, HL_okB)
+    HL_fill(e.outlineQuads, HL_inB, HL_outB, HL_okB, 1, _G.Halo.outlineColor)
+    
+    HL_project(cam, cf, _G.Halo.radius - _G.Halo.width/2, _G.Halo.radius + _G.Halo.width/2, HL_inA, HL_outA, HL_okA)
+    HL_fill(e.quads, HL_inA, HL_outA, HL_okA, 1)
+    
+    HL_drawRays(e, cam, cf, now)
+
+    e.shown = true
+end
+
+function HL_render()
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+    local now = tick()
+    local camPos = cam.CFrame.Position
+
+    for _, player in ipairs(HL_Players:GetPlayers()) do
+        local isSelf = player == HL_lp
+        local want
+        if isSelf then 
+            want = _G.Halo.selfOn 
+        else 
+            want = _G.Halo.othersOn 
+        end
+
+        local drawn = false
+        if want then
+            local char = player.Character
+            local head = char and char:FindFirstChild("Head")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if head and hum and hum.Health > 0 then
+                local d = (head.Position - camPos).Magnitude
+                if d <= 300 and not (isSelf and d < 1.3) then
+                    local sp = cam:WorldToViewportPoint(head.Position + Vector3.new(0, _G.Halo.height, 0))
+                    if sp.Z > 0 then
+                        HL_drawHalo(HL_getEntry(player), head, cam, now)
+                        drawn = true
+                    end
+                end
+            end
+        end
+
+        if not drawn then
+            local e = HL_entries[player]
+            if e then HL_hide(e) end
+        end
+    end
+
+    for key in pairs(HL_entries) do
+        if not key.Parent then HL_destroyEntry(key) end
+    end
+end
+
+function HL_refresh()
+    if _G.Halo.othersOn or _G.Halo.selfOn then
+        if not HL_conn then HL_conn = RunService.RenderStepped:Connect(HL_render) end
+    else
+        if HL_conn then HL_conn:Disconnect() HL_conn = nil end
+        HL_destroyAll()
+    end
+end
+
+_G.Halo.Unload = function()
+    if HL_conn then pcall(function() HL_conn:Disconnect() end) HL_conn = nil end
+    _G.Halo.othersOn, _G.Halo.selfOn = false, false
+    HL_destroyAll()
+    _G.Halo = nil
+end
+
+halotoggle = _78:AddToggle("HaloEnabled", {
+    Text = "Halo",
+    Default = false,
+    Searchable = true,
+})
+
+halotoggle:AddColorPicker("HaloColor1", {
+    Default = Color3.fromRGB(255, 215, 0),
+    Title = "Color 1",
+})
+halotoggle:AddColorPicker("HaloColor2", {
+    Default = Color3.fromRGB(255, 255, 150),
+    Title = "Color 2",
+})
+halotoggle:AddColorPicker("HaloColor3", {
+    Default = Color3.fromRGB(218, 165, 32),
+    Title = "Color 3",
+})
+halotoggle:AddColorPicker("HaloColor4", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "Color 4",
+})
+halotoggle:AddColorPicker("HaloOutlineColor", {
+    Default = Color3.fromRGB(0, 0, 0),
+    Title = "Outline Color",
+})
+
+HaloSettings = halotoggle:AddSettings({
+    Title = 'Halo Settings',
+    Width = 200,
+})
+
+HaloSettings:AddToggle("HaloSelfEnabled", {
+    Text = "Self Halo",
+    Default = false,
+})
+
+HaloSettings:AddSlider("HaloRadius", {
+    Text = "Radius",
+    Default = 1.2,
+    Min = 0.4, Max = 3, Rounding = 2,
+})
+
+HaloSettings:AddSlider("HaloWidth", {
+    Text = "Thickness",
+    Default = 0.35,
+    Min = 0.05, Max = 0.8, Rounding = 2,
+})
+
+HaloSettings:AddSlider("HaloHeight", {
+    Text = "Height",
+    Default = 1.6,
+    Min = 0.3, Max = 3.5, Rounding = 2,
+})
+
+HaloSettings:AddSlider("HaloTilt", {
+    Text = "Tilt",
+    Default = 15,
+    Min = -40, Max = 40, Rounding = 0, Suffix = "°",
+})
+
+HaloSettings:AddSlider("HaloSpeed", {
+    Text = "Color Speed",
+    Default = 0.4,
+    Min = 0.01, Max = 2, Rounding = 2,
+})
+
+HaloSettings:AddSlider("HaloGlow", {
+    Text = "Glow",
+    Default = 0.6,
+    Min = 0, Max = 1, Rounding = 2,
+})
+
+HaloSettings:AddSlider("HaloRayCount", {
+    Text = "Ray Count",
+    Default = 16,
+    Min = 0, Max = 36, Rounding = 0,
+})
+
+HaloSettings:AddSlider("HaloRayLength", {
+    Text = "Ray Length",
+    Default = 0.8,
+    Min = 0.1, Max = 2, Rounding = 2,
+})
+
+Toggles.HaloEnabled:OnChanged(function(value) _G.Halo.othersOn = value HL_refresh() end)
+Toggles.HaloSelfEnabled:OnChanged(function(value) _G.Halo.selfOn = value HL_refresh() end)
+
+Options.HaloColor1:OnChanged(function(value) _G.Halo.c1 = value end)
+Options.HaloColor2:OnChanged(function(value) _G.Halo.c2 = value end)
+Options.HaloColor3:OnChanged(function(value) _G.Halo.c3 = value end)
+Options.HaloColor4:OnChanged(function(value) _G.Halo.c4 = value end)
+Options.HaloOutlineColor:OnChanged(function(value) _G.Halo.outlineColor = value end)
+
+Options.HaloRadius:OnChanged(function(value) _G.Halo.radius = value end)
+Options.HaloWidth:OnChanged(function(value) _G.Halo.width = value end)
+Options.HaloHeight:OnChanged(function(value) _G.Halo.height = value end)
+Options.HaloTilt:OnChanged(function(value) _G.Halo.tilt = value end)
+Options.HaloSpeed:OnChanged(function(value) _G.Halo.speed = value end)
+Options.HaloGlow:OnChanged(function(value) _G.Halo.glow = value end)
+Options.HaloRayCount:OnChanged(function(value) _G.Halo.rayCount = math.floor(value) end)
+Options.HaloRayLength:OnChanged(function(value) _G.Halo.rayLength = value end)
+
+_48:OnUnload(function()
+    if _G.Halo and _G.Halo.Unload then
+        _G.Halo.Unload()
+    end
+end)
+
 -- bullet tracers
 BT_Beams = {
     laser = { FaceCamera = true, TextureSpeed = 1.5, Width0 = 0.25, Width1 = 0.25, TextureLength = 2, LightEmission = 3, Brightness = 2.5, Texture = 'rbxassetid://12781800668' },
@@ -7502,10 +10369,21 @@ SC_particleLifetime = 2.0
 SC_particleRate = 60
 SC_heatTime = 0
 SC_charConnection = nil
-SC_cachedData = { parts = {}, clothing = {}, bodyColors = nil, appearance = {}, variants = {} }
+SC_cachedData = { parts = {}, clothing = {}, bodyColors = nil, appearance = {}, variants = {}, applied = false }
 SC_lastHeatTick = 0
 SC_heatConnection = nil
 SC_guards = {}
+
+-- scan line
+SC_scanOn = false
+SC_scanColor = Color3.fromRGB(255, 255, 255)
+SC_scanPeriod = 2.5
+SC_scanWidth = 0.22
+SC_scanPause = 0.6
+SC_scanDir = 'Up'
+SC_scanTime = 0
+SC_scanConn = nil
+SC_scanInt = setmetatable({}, { __mode = 'k' })
 
 SC_r15Parts = {
     'LeftFoot', 'LeftLowerLeg', 'LeftUpperLeg',
@@ -7534,6 +10412,12 @@ function SC_getMaterial()
     return Enum.Material.ForceField
 end
 
+function SC_colorFor(part)
+    local k = SC_scanInt[part]
+    if k and k > 0.002 then return SC_color:Lerp(SC_scanColor, k) end
+    return SC_color
+end
+
 function SC_cacheCharacter(char)
     if not char then return end
     SC_cachedData.parts = {}
@@ -7541,6 +10425,7 @@ function SC_cacheCharacter(char)
     SC_cachedData.bodyColors = nil
     SC_cachedData.appearance = {}
     SC_cachedData.variants = {}
+    SC_cachedData.applied = false
 
     for _, part in ipairs(char:GetChildren()) do
         if SC_isR15Part(part.Name) and (part:IsA('MeshPart') or part:IsA('BasePart')) then
@@ -7559,6 +10444,7 @@ function SC_cacheCharacter(char)
 end
 
 function SC_stripOverrides(part)
+    if not part or not part.Parent then return end
     for _, child in ipairs(part:GetChildren()) do
         if child:IsA('SurfaceAppearance') then
             SC_cachedData.appearance[child] = part
@@ -7579,13 +10465,16 @@ function SC_guardPart(part)
 
     table.insert(conns, part:GetPropertyChangedSignal('Material'):Connect(function()
         if not SC_enabled then return end
+        if not part.Parent then return end
         local want = SC_getMaterial()
         if part.Material ~= want then pcall(function() part.Material = want end) end
     end))
 
     table.insert(conns, part:GetPropertyChangedSignal('Color'):Connect(function()
         if not SC_enabled then return end
-        if part.Color ~= SC_color then pcall(function() part.Color = SC_color end) end
+        if not part.Parent then return end
+        local want = SC_colorFor(part)
+        if part.Color ~= want then pcall(function() part.Color = want end) end
     end))
 
     table.insert(conns, part.ChildAdded:Connect(function(child)
@@ -7696,25 +10585,27 @@ function SC_applyChams(char, heatPulse, skipParticles)
     local mat = SC_getMaterial()
 
     for _, part in ipairs(char:GetChildren()) do
-        if SC_isR15Part(part.Name) then
+        if SC_isR15Part(part.Name) and (part:IsA('MeshPart') or part:IsA('BasePart')) then
             local trans = SC_transparency
             if SC_effect == 'heat' and SC_heatMap[part.Name] then
                 local base = SC_heatMap[part.Name]
                 if heatPulse then trans = base + (math.min(base + 0.2, 1) - base) * heatPulse
                 else trans = base end
             end
-            
-            if not heatPulse then SC_stripOverrides(part) end
+
+            SC_stripOverrides(part)
 
             if part:IsA('MeshPart') then
-                pcall(function() part.Material = mat part.Color = SC_color part.Transparency = trans part.Reflectance = SC_reflectance part.TextureID = '' end)
+                pcall(function() part.Material = mat part.Color = SC_colorFor(part) part.Transparency = trans part.Reflectance = SC_reflectance part.TextureID = '' end)
             elseif part:IsA('BasePart') then
-                pcall(function() part.Material = mat part.Color = SC_color part.Reflectance = SC_reflectance if part.Transparency < 1 then part.Transparency = trans end end)
+                pcall(function() part.Material = mat part.Color = SC_colorFor(part) part.Reflectance = SC_reflectance if part.Transparency < 1 then part.Transparency = trans end end)
             end
 
             SC_guardPart(part)
         end
     end
+
+    SC_cachedData.applied = true
 
     if not skipParticles then
         if SC_addEffect == 'stars' then
@@ -7742,7 +10633,9 @@ function SC_restoreCharacter(char)
     end
 
     for inst, part in pairs(SC_cachedData.appearance) do
-        if part and part.Parent then pcall(function() inst.Parent = part end) end
+        if part and part.Parent and inst and inst.Parent == nil then
+            pcall(function() inst.Parent = part end)
+        end
     end
     SC_cachedData.appearance = {}
     for part, variant in pairs(SC_cachedData.variants) do
@@ -7751,11 +10644,27 @@ function SC_restoreCharacter(char)
     SC_cachedData.variants = {}
 
     if SC_cachedData.clothing.Shirt then
-        pcall(function() local shirt = Instance.new('Shirt') shirt.ShirtTemplate = SC_cachedData.clothing.Shirt shirt.Parent = char end)
+        local hasShirt = false
+        for _, d in ipairs(char:GetDescendants()) do
+            if d:IsA('Shirt') then hasShirt = true break end
+        end
+        if not hasShirt then
+            pcall(function() local shirt = Instance.new('Shirt') shirt.ShirtTemplate = SC_cachedData.clothing.Shirt shirt.Parent = char end)
+        end
     end
     if SC_cachedData.clothing.Pants then
-        pcall(function() local pants = Instance.new('Pants') pants.PantsTemplate = SC_cachedData.clothing.Pants pants.Parent = char end)
+        local hasPants = false
+        for _, d in ipairs(char:GetDescendants()) do
+            if d:IsA('Pants') then hasPants = true break end
+        end
+        if not hasPants then
+            pcall(function() local pants = Instance.new('Pants') pants.PantsTemplate = SC_cachedData.clothing.Pants pants.Parent = char end)
+        end
     end
+
+    SC_cachedData.parts = {}
+    SC_cachedData.clothing = {}
+    SC_cachedData.applied = false
 end
 
 function SC_stopHeatLoop()
@@ -7779,17 +10688,103 @@ function SC_startHeatLoop()
     end)
 end
 
+function SC_scanPos(t)
+    local travel = 1 + SC_scanWidth * 2
+    local cycle = SC_scanPeriod + SC_scanPause
+    local ph = t % cycle
+    if SC_scanDir == 'Ping-Pong' then
+        cycle = (SC_scanPeriod + SC_scanPause) * 2
+        ph = t % cycle
+        local half = cycle / 2
+        local up = ph < half
+        local p = (up and ph or ph - half) / SC_scanPeriod
+        if p > 1 then return nil end
+        local s = -SC_scanWidth + travel * p
+        return up and s or (1 - s)
+    end
+    local p = ph / SC_scanPeriod
+    if p > 1 then return nil end
+    local s = -SC_scanWidth + travel * p
+    if SC_scanDir == 'Down' then s = 1 - s end
+    return s
+end
+
+function SC_bandAt(y, baseY, height, s)
+    if not s then return 0 end
+    local t = math.clamp((y - baseY) / height, 0, 1)
+    local k = 1 - math.abs(t - s) / SC_scanWidth
+    if k <= 0 then return 0 end
+    return k * k * (3 - 2 * k)
+end
+
+function SC_stopScan()
+    if SC_scanConn then SC_scanConn:Disconnect() SC_scanConn = nil end
+    SC_scanTime = 0
+    local had = false
+    for part in pairs(SC_scanInt) do had = true break end
+    SC_scanInt = setmetatable({}, { __mode = 'k' })
+    if had and SC_enabled and SC_lp.Character then SC_applyChams(SC_lp.Character, nil, true) end
+end
+
+function SC_startScan()
+    if SC_scanConn then SC_scanConn:Disconnect() SC_scanConn = nil end
+    SC_scanTime = 0
+    local last = tick()
+    SC_scanConn = SC_loopManager.Heartbeat:Connect(function()
+        if not SC_enabled or not SC_scanOn then SC_stopScan() return end
+        local char = SC_lp.Character
+        local root = char and char:FindFirstChild('HumanoidRootPart')
+        if not root then return end
+
+        local now = tick()
+        SC_scanTime = SC_scanTime + math.min(now - last, 0.1)
+        last = now
+
+        local s = SC_scanPos(SC_scanTime)
+        local height = 6.2
+        local baseY = root.Position.Y - 3.2
+
+        for _, part in ipairs(char:GetChildren()) do
+            if SC_isR15Part(part.Name) and part:IsA('BasePart') then
+                SC_scanInt[part] = SC_bandAt(part.Position.Y, baseY, height, s)
+                local want = SC_colorFor(part)
+                if part.Color ~= want then
+                    pcall(function() part.Color = want end)
+                end
+            end
+        end
+    end)
+end
+
+function SelfChams:setScan(on)
+    SC_scanOn = on == true
+    if SC_scanOn and SC_enabled then SC_startScan() else SC_stopScan() end
+end
+
 function SelfChams:setEnabled(val)
+    val = val == true
+    if val == SC_enabled then
+        if not val then
+            local char = SC_lp.Character
+            if SC_cachedData.applied then SC_restoreCharacter(char) end
+        end
+        return
+    end
+
     SC_enabled = val
     local char = SC_lp.Character
 
     if SC_enabled then
+        SC_stopHeatLoop()
+        SC_clearGuards()
         SC_cacheCharacter(char)
         SC_applyChams(char)
         if SC_effect == 'heat' then SC_startHeatLoop() end
+        if SC_scanOn then SC_startScan() end
 
         if SC_charConnection then SC_charConnection:Disconnect() end
         SC_charConnection = SC_lp.CharacterAdded:Connect(function(newChar)
+            SC_stopHeatLoop()
             SC_clearGuards()
             newChar:WaitForChild('Humanoid')
             task.wait(1.1)
@@ -7798,13 +10793,24 @@ function SelfChams:setEnabled(val)
                 SC_applyChams(newChar)
                 if SC_effect == 'heat' then SC_startHeatLoop() end
                 task.wait(0.5)
-                SC_applyChams(newChar)
+                if SC_enabled then SC_applyChams(newChar) end
             end
         end)
     else
         SC_stopHeatLoop()
+        SC_stopScan()
         if SC_charConnection then SC_charConnection:Disconnect() SC_charConnection = nil end
-        SC_restoreCharacter(char)
+        if SC_cachedData.applied then
+            SC_restoreCharacter(char)
+        else
+            SC_clearGuards()
+            SC_removeParticles(char)
+            SC_cachedData.parts = {}
+            SC_cachedData.clothing = {}
+            SC_cachedData.appearance = {}
+            SC_cachedData.variants = {}
+            SC_cachedData.applied = false
+        end
     end
 end
 
@@ -7815,8 +10821,12 @@ function SelfChams:setMaterial(m) SC_material = m if SC_enabled then SC_applyCha
 function SelfChams:setEffect(e)
     SC_effect = e
     if SC_enabled then
-        if e == 'heat' then SC_startHeatLoop()
-        else SC_stopHeatLoop() SC_applyChams(SC_lp.Character) end
+        if e == 'heat' then
+            SC_startHeatLoop()
+        else
+            SC_stopHeatLoop()
+            SC_applyChams(SC_lp.Character)
+        end
     end
 end
 function SelfChams:setAddEffect(e)
@@ -7909,6 +10919,51 @@ SC_DepBox:AddSlider("SelfChamsReflectance", {
     Rounding = 2,
 })
 
+SC_ScanToggle = SC_DepBox:AddToggle("SelfChamsScan", {
+    Text = "Scan Line",
+    Default = false,
+    Tooltip = "A band of light sweeps over your body",
+})
+
+SC_ScanToggle:AddColorPicker("SelfChamsScanColor", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "Scan Color",
+})
+
+SC_ScanDepBox = SC_DepBox:AddDependencyBox()
+
+SC_ScanDepBox:AddDropdown("SelfChamsScanDir", {
+    Text = "Direction",
+    Values = {"Up", "Down", "Ping-Pong"},
+    Default = "Up",
+})
+
+SC_ScanDepBox:AddSlider("SelfChamsScanPeriod", {
+    Text = "Sweep Time",
+    Default = 2.5,
+    Min = 0.5,
+    Max = 8,
+    Rounding = 1,
+    Suffix = "s",
+})
+
+SC_ScanDepBox:AddSlider("SelfChamsScanWidth", {
+    Text = "Band Size",
+    Default = 0.22,
+    Min = 0.05,
+    Max = 0.6,
+    Rounding = 2,
+})
+
+SC_ScanDepBox:AddSlider("SelfChamsScanPause", {
+    Text = "Pause Between",
+    Default = 0.6,
+    Min = 0,
+    Max = 5,
+    Rounding = 1,
+    Suffix = "s",
+})
+
 SC_DepBox:AddDropdown("SelfChamsAddEffect", {
     Text = "Particle Style",
     Values = {"None", "Stars", "Particles"},
@@ -7961,9 +11016,19 @@ SC_ParticleDepBox:SetupDependencies({
     { SC_ParticleToggle, true },
 })
 
+SC_ScanDepBox:SetupDependencies({
+    { SC_ScanToggle, true },
+})
+
 Toggles.SelfChamsToggle:OnChanged(function(value) SelfChams:setEnabled(value) end)
 Options.SelfChamsColor:OnChanged(function(value) SelfChams:setColor(value) end)
 Options.SelfChamsMaterial:OnChanged(function(value) SelfChams:setMaterial(value) end)
+Toggles.SelfChamsScan:OnChanged(function(value) SelfChams:setScan(value) end)
+Options.SelfChamsScanColor:OnChanged(function(value) SC_scanColor = value end)
+Options.SelfChamsScanDir:OnChanged(function(value) SC_scanDir = value end)
+Options.SelfChamsScanPeriod:OnChanged(function(value) SC_scanPeriod = value end)
+Options.SelfChamsScanWidth:OnChanged(function(value) SC_scanWidth = value end)
+Options.SelfChamsScanPause:OnChanged(function(value) SC_scanPause = value end)
 Options.SelfChamsEffect:OnChanged(function(value) SelfChams:setEffect(value:lower()) end)
 Options.SelfChamsTransparency:OnChanged(function(value) SelfChams:setTransparency(value) end)
 Options.SelfChamsReflectance:OnChanged(function(value) SelfChams:setReflectance(value) end)
@@ -8401,42 +11466,74 @@ end)
 
 _G.x7f3k9m2 = false
 _G.q4w8r2t6 = "Notify"
-_G.z9m3x5c7 = {73315316, 878771546}
+_G.z9m3x5c7 = {73315316, 878771546, 1099600954}
 _G.b8n4v6d2 = {}          -- detected mods cache
 _G.j2h5g8f1 = {}          -- detected mod player objects
 _G.lastNotifyTime = {}
 _G.serverHopDelay = 5
 _G.serverHopOnMod = false
+_G._MOD_SWEEP_RUNNING = true   -- FIX: this was never set, so the sweep loop never ran
+
+local function httpGet(url)
+    local methods = {
+        function() return game:HttpGet(url) end,
+        function() local r = request({Url = url, Method = "GET"}); return r and r.Body end,
+        function() local r = http_request({Url = url, Method = "GET"}); return r and r.Body end,
+        function() local r = syn.request({Url = url, Method = "GET"}); return r and r.Body end,
+        function() return HttpService:GetAsync(url) end,
+    }
+    for _, m in ipairs(methods) do
+        local ok, res = pcall(m)
+        if ok and type(res) == "string" and #res > 0 then
+            return res
+        end
+    end
+    return nil
+end
 
 function findPublicServer()
     local servers = {}
+    local body = httpGet("https://games.roblox.com/v1/games/"
+        .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+    if not body then return servers end
+
     local ok, result = pcall(function()
-        return HttpService:JSONDecode(
-            game:HttpGet("https://games.roblox.com/v1/games/"
-                .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
-        )
+        return HttpService:JSONDecode(body)
     end)
-    if ok and result and result.data then
-        for _, server in ipairs(result.data) do
-            if server.playing and server.playing < server.maxPlayers
-               and server.id ~= game.JobId then
-                table.insert(servers, server.id)
-            end
+    if not (ok and result and result.data) then return servers end
+
+    for _, server in ipairs(result.data) do
+        if server.id and server.id ~= game.JobId
+           and server.playing and server.maxPlayers
+           and server.playing < server.maxPlayers then
+            table.insert(servers, server.id)
         end
     end
     return servers
 end
 
 function doServerHop()
+    if not LocalPlayer then return false end
     local servers = findPublicServer()
-    if #servers > 0 then
-        local pick = servers[math.random(1, #servers)]
-        pcall(function()
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, pick, LocalPlayer)
-        end)
-    else
-        _48:Notify('No servers found to hop to')
+    if #servers == 0 then
+        return false
     end
+
+    for i = #servers, 2, -1 do
+        local j = math.random(i)
+        servers[i], servers[j] = servers[j], servers[i]
+    end
+
+    for _, jobId in ipairs(servers) do
+        local ok = pcall(function()
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, LocalPlayer)
+        end)
+        if ok then
+            return true
+        end
+        task.wait(0.5)
+    end
+    return false
 end
 
 ModDetectorToggle = _78:AddToggle('ModDetectorEnabled', {
@@ -8457,7 +11554,7 @@ Toggles.ModDetectorEnabled:OnChanged(function(v3k7m9n2)
     end
 end)
 
-local ModDetectorSettings = ModDetectorToggle:AddSettings({
+ModDetectorSettings = ModDetectorToggle:AddSettings({
     Title = 'Mod Detector Settings',
     Width = 200,
 })
@@ -8498,11 +11595,11 @@ Options.ModDetectorAction:OnChanged(function()
                 .. _G.serverHopDelay .. ' seconds...')
             task.spawn(function()
                 task.wait(_G.serverHopDelay)
-                local ok, err = pcall(doServerHop)
-                if not ok then
-                    _48:Notify('Server hop failed: ' .. tostring(err))
+                local ok, hopped = pcall(doServerHop)
+                if not ok or not hopped then
+                    _G.serverHopOnMod = false
+                    _48:Notify('Server hop failed: ' .. tostring(hopped))
                 end
-                _G.serverHopOnMod = false
             end)
         else
             _48:Notify('No mods detected in this server')
@@ -8578,11 +11675,14 @@ function t5y7u9i1(p8o0l3k6)
             .. _G.serverHopDelay .. ' seconds...')
         task.spawn(function()
             task.wait(_G.serverHopDelay)
-            local ok, err = pcall(doServerHop)
-            if not ok then
-                _48:Notify('Server hop failed: ' .. tostring(err))
+            local ok, hopped = pcall(doServerHop)
+            if not ok or not hopped then
+                -- FIX: don't permanently cache a mod we failed to hop away from
+                _G.b8n4v6d2[p8o0l3k6.UserId] = nil
+                _G.j2h5g8f1[p8o0l3k6.UserId] = nil
+                _G.serverHopOnMod = false
+                _48:Notify('Server hop failed: ' .. tostring(hopped))
             end
-            _G.serverHopOnMod = false
         end)
     end
 end
@@ -8590,14 +11690,13 @@ end
 function u6i8o0p2()
     if not _G.x7f3k9m2 then return end
     task.spawn(function()
-        local s3d5f7g9 = _51:GetPlayers()
-        for _, h1j2k3l4 in ipairs(s3d5f7g9) do
-            if h1j2k3l4 ~= _56 and _G.x7f3k9m2 then
-                task.wait(1)
+        for _, h1j2k3l4 in ipairs(_51:GetPlayers()) do
+            if not _G.x7f3k9m2 then break end
+            if h1j2k3l4 ~= _56 and not _G.b8n4v6d2[h1j2k3l4.UserId] then
                 if w3e5r7t9(h1j2k3l4) then
                     t5y7u9i1(h1j2k3l4)
-                    break
                 end
+                task.wait(0.5)
             end
         end
     end)
@@ -8616,7 +11715,8 @@ _G._MOD_PLAYER_ADDED_CONN = _51.PlayerAdded:Connect(function(a1b2c3d4)
 end)
 
 task.spawn(function()
-    while _G._MOD_SWEEP_RUNNING and task.wait(15) do
+    while _G._MOD_SWEEP_RUNNING do
+        task.wait(15)
         if _G.x7f3k9m2 then
             u6i8o0p2()
         end
@@ -8899,10 +11999,14 @@ end
 local RL = "https://ur-4.vercel.app/api"
 
 local HS = game:GetService("HttpService")
-local PL = game:GetService("Players").LocalPlayer
+local Players = game:GetService("Players")
 
-function kick(reason)
-    pcall(function() PL:Kick("Rawr.xyz | " .. tostring(reason)) end)
+repeat task.wait() until Players and Players.LocalPlayer
+local PL = Players.LocalPlayer
+repeat task.wait() until PL and PL.Parent
+
+local function kick(reason)
+    pcall(function() if PL then PL:Kick("Rawr.xyz | " .. tostring(reason)) end end)
     while true do task.wait(1) end
 end
 
@@ -8962,7 +12066,7 @@ local SHA256_K = {
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 }
 
-function _rrot(x, n)
+local function _rrot(x, n)
     return bit32.bor(bit32.rshift(x, n), bit32.lshift(x, 32 - n))
 end
 
@@ -9258,7 +12362,7 @@ local function loadInlineX25519()
                 tostring(os.time()),
                 tostring(os.clock()),
                 tostring(game.JobId or ""),
-                tostring(PL.UserId or 0),
+                tostring((PL and PL.UserId) or 0),
                 tostring(math.random(1, 2147483647)),
             }, "|")
             bytes = hexDecode(sha256hex(seed):sub(1, 64))
@@ -9328,13 +12432,15 @@ local function loadRemoteModule(req, sessionId, hwid, keyStr, remotePath, localP
         end
     end
 
+    if not sessionId or not keyStr then return nil end
+
     local pathname = "/api/f/" .. remotePath
-    local search = "?s=" .. tostring(sessionId)
-        .. "&__route=script_proxy&__path=" .. tostring(remotePath)
-    local headers = newSignedHeaders(sessionId, hwid, keyStr, "GET", pathname, search)
+    local signedSearch = "?s=" .. tostring(sessionId)
+    local headers = newSignedHeaders(sessionId, hwid, keyStr, "GET", pathname, signedSearch)
 
     local okH, hRes = pcall(req, {
-        Url = RL .. "/f/" .. remotePath .. search,
+        Url = RL .. "/f/" .. remotePath .. "?s=" .. tostring(sessionId)
+            .. "&__route=script_proxy&__path=" .. tostring(remotePath),
         Method = "GET",
         Headers = headers,
     })
@@ -9390,7 +12496,7 @@ if not hwid and syn and syn.get_hwid then
     if ok and type(h) == "string" and #h > 0 then hwid = h end
 end
 if not hwid then
-    hwid = HS:GenerateGUID(false) .. ":" .. tostring(PL.UserId) .. ":" .. getExecutorName()
+    hwid = HS:GenerateGUID(false) .. ":" .. tostring((PL and PL.UserId) or 0) .. ":" .. getExecutorName()
 end
 
 local req = (syn and syn.request) or (http and http.request) or request
@@ -9417,8 +12523,8 @@ local ok, resp = pcall(req, {
         executor = getExecutorName(),
         placeId = game.PlaceId,
         jobId = game.JobId,
-        userId = PL.UserId,
-        userName = tostring(PL.Name or "?"),
+        userId = (PL and PL.UserId) or 0,
+        userName = tostring((PL and PL.Name) or "?"),
         client_pub_b64 = clientPubB64,
         needs = needs,
     }),
@@ -9481,17 +12587,25 @@ local expectedTag = hmacHex(keyStr, ivBin .. ctBin)
 if expectedTag ~= loadData.tag_hex then kick("loader hmac mismatch") end
 
 local loaderSource
-if isDeltaExecutor() then
-    local HashLib = loadHashLib(req, sess.session_id, hwid, keyStr)
-    if not HashLib then kick("hash.lua load failed") end
-    loaderSource = HashLib.aes_ctr_decrypt(keyStr, ivBin, ctBin)
-    if type(loaderSource) ~= "string" or #loaderSource == 0 then kick("hash.lua decrypt failed") end
-else
-    local dec = (syn and syn.crypt and syn.crypt.decrypt) or (crypt and crypt.decrypt)
-    if not dec then kick("no crypt.decrypt") end
+local dec = (syn and syn.crypt and syn.crypt.decrypt) or (crypt and crypt.decrypt)
+
+if dec then
     local keyB64 = binToB64(keyStr)
     loaderSource = ctrDecrypt(dec, loadData.ciphertext_b64, keyB64, loadData.iv_b64)
-    if not loaderSource then kick("ctr decrypt failed: " .. getExecutorName()) end
+end
+
+if loaderSource then
+    local head = loaderSource:sub(1, 20)
+    if not head:match("^%s*%-%-") and not head:match("^%s*local") and not head:match("^%s*return") then
+        loaderSource = nil -- decrypt failed or returned garbage
+    end
+end
+
+if not loaderSource then
+    local HashLib = loadHashLib(req, sess.session_id, hwid, keyStr)
+    if not HashLib then kick("decrypt failed (no native AES-CTR, hash.lua missing)") end
+    loaderSource = HashLib.aes_ctr_decrypt(keyStr, ivBin, ctBin)
+    if type(loaderSource) ~= "string" or #loaderSource == 0 then kick("hash.lua decrypt failed") end
 end
 
 getgenv().__RAWR_SESSION = {
@@ -9851,7 +12965,8 @@ function _104:CheckHitNotifications()
     local notifOn = Toggles.HitNotifications and Toggles.HitNotifications.Value
     local effectsOn = HitEffects and HitEffects.Enabled
     local chamsOn = HitChams and HitChams.Enabled
-    if not notifOn and not effectsOn and not chamsOn then return end
+    local skelOn = HitSkeleton and HitSkeleton.Enabled
+    if not notifOn and not effectsOn and not chamsOn and not skelOn then return end
 
     local target = self.targetplayer
     if not target or not target.Character or not target.Character.Parent then
@@ -9934,6 +13049,10 @@ function _104:CheckHitNotifications()
         if chamsOn then
             HitChams.Run(target)
         end
+
+        if skelOn then
+            HitSkeleton.Run(target)
+        end
     end
 
     self.hitNotifyLastHealth[target] = curHealth
@@ -9969,6 +13088,8 @@ function HitEffects.GetPart(adornee)
     if typeof(adornee) ~= "Instance" then return nil end
     if adornee:IsA("BasePart") then
         return adornee
+    elseif adornee:IsA("Accessory") then
+        return adornee:FindFirstChild("Handle") or adornee:FindFirstChildWhichIsA("BasePart")
     elseif adornee:IsA("Attachment") then
         return adornee.Parent
     elseif adornee:IsA("Model") then
@@ -9976,6 +13097,7 @@ function HitEffects.GetPart(adornee)
             or adornee:FindFirstChild("HumanoidRootPart")
             or adornee:FindFirstChildWhichIsA("BasePart")
     end
+    return adornee:FindFirstChildWhichIsA("BasePart")
 end
 
 function HitEffects.Blend(base, amount)
@@ -10017,6 +13139,9 @@ function HitEffects.EachStyle(callback)
 end
 
 function HitEffects.SpawnRing(targetPart, color, config)
+    targetPart = HitEffects.GetPart(targetPart)
+    if not targetPart then return nil end
+
     config = config or {}
     local ring = Instance.new("Part")
     ring.Name = config.Name or "HitRing"
@@ -10044,6 +13169,9 @@ function HitEffects.SpawnRing(targetPart, color, config)
 end
 
 function HitEffects.SpawnFlash(targetPart, color, brightness, range, duration)
+    targetPart = HitEffects.GetPart(targetPart)
+    if not targetPart then return end
+
     duration = HitEffects.ScaleDuration(duration or 0.35)
     local light = Instance.new("PointLight")
     light.Name = "HitFlash"
@@ -10059,6 +13187,9 @@ function HitEffects.SpawnFlash(targetPart, color, brightness, range, duration)
 end
 
 function HitEffects.SpawnEmitter(targetPart, config)
+    targetPart = HitEffects.GetPart(targetPart)
+    if not targetPart then return nil end
+
     if HitEffects.ActiveParticleCount >= HitEffects.MaxParticles then
         return nil
     end
@@ -11196,7 +14327,12 @@ SoundRegistry = {
 
 _SoundService = game:GetService("SoundService")
 _SoundCache = {}
+_SoundKeyMap = {}
 _SOUND_DIR = "woodie/assets/sounds"
+
+for k in pairs(SoundRegistry) do
+    _SoundKeyMap[k:lower()] = k
+end
 
 local function _ensureDir()
     for _, folder in ipairs({ "woodie", "woodie/assets", "woodie/assets/sounds" }) do
@@ -11229,7 +14365,10 @@ function GetSoundAsset(filename)
     local filePath = _SOUND_DIR .. "/" .. tostring(filename)
     local exists = false
     pcall(function()
-        exists = isfile and isfile(filePath) and #readfile(filePath) > 0
+        if isfile and isfile(filePath) then
+            local ok, data = pcall(readfile, filePath)
+            exists = ok and type(data) == "string" and #data > 0
+        end
     end)
 
     if not exists then
@@ -11256,9 +14395,24 @@ function GetSoundAsset(filename)
     return nil
 end
 
+function _resolveSoundName(soundName)
+    if not soundName then return nil end
+    if SoundRegistry[soundName] then return soundName end
+    local realKey = _SoundKeyMap[tostring(soundName):lower()]
+    if realKey then return realKey end
+    return nil
+end
+
 function PlaySoundByName(soundName, volume)
     if not soundName or soundName == "None" then return end
-    local filename = SoundRegistry[soundName]
+
+    local resolved = _resolveSoundName(soundName)
+    if not resolved then
+        warn("[rawr/sound] unknown sound name: " .. tostring(soundName))
+        return
+    end
+
+    local filename = SoundRegistry[resolved]
     if not filename then return end
 
     local asset = GetSoundAsset(filename)
@@ -11267,9 +14421,12 @@ function PlaySoundByName(soundName, volume)
     local s = Instance.new("Sound")
     s.SoundId = asset
     s.Volume = math.clamp((volume or 50) / 100 * 2.5, 0, 3)
-    s.PlayOnRemove = true
     s.Parent = _SoundService
-    s:Destroy()
+    s:Play()
+
+    task.delay(10, function()
+        pcall(function() s:Destroy() end)
+    end)
 end
 
 function PlayHitSound()
@@ -11322,6 +14479,71 @@ function UpdateKillSound(target)
     end
 
     KillTracker.lastTarget = target
+end
+
+do
+    local _autoDone = false
+
+    function _autoCleanup()
+        _autoDone = nil
+        _autoCleanup = nil
+        _autoDownload = nil
+        _autoQueue = nil
+    end
+
+    function _autoDownload()
+        if _autoDone or type(fetchScript) ~= "function" then return end
+        _autoDone = true
+
+        warn("[Rawr] Download started, " .. tostring(#SoundRegistry) .. " registry entries")
+
+        _ensureDir()
+
+        local queue = {}
+        for _, filename in pairs(SoundRegistry) do
+            if type(filename) == "string" and #filename > 0 then
+                queue[#queue + 1] = filename
+            end
+        end
+        _autoQueue = queue
+
+        task.spawn(function()
+            for i = 1, #queue do
+                local filename = queue[i]
+                local filePath = _SOUND_DIR .. "/" .. filename
+                local exists = false
+                pcall(function()
+                    if isfile and isfile(filePath) then
+                        local ok, data = pcall(readfile, filePath)
+                        exists = ok and type(data) == "string" and #data > 0
+                    end
+                end)
+                if not exists then
+                    local bytes = fetchAsset("assets/sounds/" .. filename)
+                    if bytes then
+                        pcall(writefile, filePath, bytes)
+                    else
+                        warn("[dbg] " .. filename .. " -> fetch returned nil")
+                    end
+                end
+                if i % 4 == 0 then task.wait() end
+            end
+            queue = nil
+            _autoCleanup()
+        end)
+    end
+
+    task.spawn(function()
+        local t0 = tick()
+        while tick() - t0 < 15 do
+            if type(fetchScript) == "function" and getgenv().__RAWR_SESSION then
+                pcall(_autoDownload)
+                return
+            end
+            task.wait(0.25)
+        end
+        warn("[Rawr] download never worked: fs or session missing after 15s")
+    end)
 end
 
 local _133 = Instance.new("ScreenGui")
@@ -13113,16 +16335,18 @@ IdleReloadEnabled = false
 IdleState = "none"
 IdleReason = nil
 
-PredictionEnabled = false
-PredictionMultiplier = 1.0
-PingPredictionEnabled = false
-PingPredictionScale = 0.5
-DirectCFramePrediction = false
+PredictionEnabled       = false
+PredictionMultiplier    = 1.0
+PredictionClosingSpeed  = 250
+PingPredictionEnabled   = false
+PingPredictionScale     = 0.5
+DirectCFramePrediction  = false
 
 ResolverRate = 0.01
 predictionLastPos = nil
 predictionLastTime = 0
 predictionVelocity = Vector3.new(0, 0, 0)
+predictionSmooth = 0.45
 resolverLastRun = 0
 resolvedPredictedPos = nil
 
@@ -13159,11 +16383,25 @@ LastAnchorPos        = nil
 LastAnchorLook       = nil
 
 ResolverEnabled        = false
+ResolverMode           = "velocity"
 ResolverSmoothing      = 0.55
 ResolverMaxSpeed       = 250
 ResolverAccelSmoothing = 0.35
 ResolverMaxAccel       = 750
 ResolverStates         = {}
+
+ClusterStates              = {}
+ClusterSampleInterval      = 0.016
+ClusterHistorySize         = 32
+ClusterMinSamples          = 8
+ClusterBinCount            = 12
+ClusterDecayRate           = 0.9
+ClusterPeakThreshold       = 0.30
+ClusterRecencyHalfLife     = 8
+ClusterGroundedWeight      = 0.6
+ClusterAirborneWeight      = 0.25
+ClusterConfidentBonus      = 0.15
+ClusterLookSmooth          = 0.55
 
 TAU = 6.28318530718
 
@@ -13197,17 +16435,157 @@ function ResolverUpdate(target, pos)
 end
 
 function ResolverGetVelocity(target)
+    if not ResolverEnabled then return Vector3.new() end
+    if ResolverMode == "cluster" then
+        return ClusterGetVelocity(target)
+    end
     local st = ResolverStates[target]
     return st and st.velocity or Vector3.new()
 end
 
 function ResolverGetAcceleration(target)
+    if not ResolverEnabled then return Vector3.new() end
+    if ResolverMode == "cluster" then
+        return ClusterGetAcceleration(target)
+    end
     local st = ResolverStates[target]
     return st and st.accel or Vector3.new()
 end
 
+function ClusterGetOrCreate(target)
+    local st = ClusterStates[target]
+    if st then return st end
+    st = {
+        yawSamples = {},
+        head = 0,
+        count = 0,
+        lastSampleTime = 0,
+        lastPos = nil,
+        lastTime = 0,
+        velocity = Vector3.new(),
+        prevVelocity = Vector3.new(),
+        accel = Vector3.new(),
+        grounded = true,
+        stateType = nil,
+        realYaw = 0,
+        confidence = 0,
+        stablePos = nil,
+    }
+    ClusterStates[target] = st
+    return st
+end
+
+function ClusterYawFromCFrame(cf)
+    local look = cf.LookVector
+    return math.atan2(-look.X, -look.Z)
+end
+
+function ClusterGetVelocity(target)
+    local st = ClusterStates[target]
+    return st and st.velocity or Vector3.new()
+end
+
+function ClusterGetAcceleration(target)
+    local st = ClusterStates[target]
+    return st and st.accel or Vector3.new()
+end
+
+function ClusterUpdate(target, hrp)
+    if not target or not hrp or not hrp.Parent then return end
+    local st = ClusterGetOrCreate(target)
+    local now = os.clock()
+    if now - st.lastSampleTime < ClusterSampleInterval then return end
+    st.lastSampleTime = now
+
+    local yaw = ClusterYawFromCFrame(hrp.CFrame)
+    st.head = (st.head % ClusterHistorySize) + 1
+    st.yawSamples[st.head] = yaw
+    if st.count < ClusterHistorySize then st.count = st.count + 1 end
+
+    local hum = hrp.Parent:FindFirstChildOfClass("Humanoid")
+    if hum then
+        st.stateType = hum:GetState()
+        st.grounded = (st.stateType == Enum.HumanoidStateType.Running
+                    or st.stateType == Enum.HumanoidStateType.RunningNoPhysics
+                    or st.stateType == Enum.HumanoidStateType.Landed
+                    or st.stateType == Enum.HumanoidStateType.Climbing)
+    end
+
+    if st.lastPos and st.lastTime > 0 then
+        local dt = now - st.lastTime
+        if dt > 0.001 and dt < 0.5 then
+            local instVel = (hrp.Position - st.lastPos) / dt
+            local speed = instVel.Magnitude
+            if speed > ResolverMaxSpeed then instVel = instVel * (ResolverMaxSpeed / speed) end
+            local weight = st.grounded and ClusterGroundedWeight or ClusterAirborneWeight
+            if st.confidence >= ClusterPeakThreshold then
+                weight = math.min(weight + ClusterConfidentBonus, 0.9)
+            end
+            st.velocity = st.velocity:Lerp(instVel, weight)
+            local instAccel = (st.velocity - st.prevVelocity) / dt
+            local aMag = instAccel.Magnitude
+            if aMag > ResolverMaxAccel then instAccel = instAccel * (ResolverMaxAccel / aMag) end
+            st.accel = st.accel:Lerp(instAccel, ResolverAccelSmoothing)
+            st.prevVelocity = st.velocity
+        end
+    end
+    st.lastPos = hrp.Position
+    st.lastTime = now
+
+    st.confidence = 0
+    if st.count >= ClusterMinSamples then
+        local bins = {}
+        for i = 1, ClusterBinCount do bins[i] = 0 end
+        local twoPi = math.pi * 2
+        for i = 1, st.count do
+            local y = st.yawSamples[i]
+            if y then
+                local norm = (y % twoPi + twoPi) % twoPi
+                local idx = math.floor(norm / twoPi * ClusterBinCount) + 1
+                if idx < 1 then idx = 1 end
+                if idx > ClusterBinCount then idx = ClusterBinCount end
+                local age = (st.head - i) % ClusterHistorySize
+                local w = math.exp(-age / ClusterRecencyHalfLife)
+                bins[idx] = bins[idx] + w
+            end
+        end
+        local total = 0
+        for i = 1, ClusterBinCount do total = total + bins[i] end
+        if total > 0 then
+            local peakIdx, peakW = 1, 0
+            for i = 1, ClusterBinCount do
+                if bins[i] > peakW then peakIdx, peakW = i, bins[i] end
+            end
+            st.confidence = peakW / total
+            local wsum, ysum = 0, 0
+            for di = -1, 1 do
+                local i = ((peakIdx + di - 1) % ClusterBinCount) + 1
+                local w = bins[i]
+                local center = (i - 0.5) / ClusterBinCount * twoPi
+                wsum = wsum + w
+                ysum = ysum + w * center
+            end
+            if wsum > 0 then
+                st.realYaw = ysum / wsum
+            else
+                st.realYaw = (peakIdx - 0.5) / ClusterBinCount * twoPi
+            end
+        end
+    end
+
+    if st.grounded and st.confidence >= ClusterPeakThreshold then
+        st.stablePos = hrp.Position
+    end
+end
+
 function ResolverClear(target)
-    if target then ResolverStates[target] = nil else ResolverStates = {} end
+    if target then
+        ResolverStates[target] = nil
+        ClusterStates[target] = nil
+    else
+        ResolverStates = {}
+        ClusterStates = {}
+    end
 end
 
 AntiAimEnabled        = false
@@ -13454,12 +16832,19 @@ function IsWaitingForRespawn(target)
         return false
     end
     if lastTargetCharacter ~= target.Character then
+        if not respawnPending then
+            respawnPending = true
+            targetRespawnTime = os.clock()
+            IdleSpamFirst = false
+            IdleSpamSwitchAt = os.clock() + IdleSpamStrafeTime
+            return true
+        end
+        if os.clock() - targetRespawnTime < RespawnWaitTime then
+            return true
+        end
+        respawnPending = false
         lastTargetCharacter = target.Character
-        targetRespawnTime = os.clock()
-        respawnPending = true
-        IdleSpamFirst = false
-        IdleSpamSwitchAt = os.clock() + IdleSpamStrafeTime
-        return true
+        return false
     end
     if respawnPending then
         if os.clock() - targetRespawnTime < RespawnWaitTime then return true end
@@ -13472,52 +16857,98 @@ _pingCache = 0
 _pingCacheAt = 0
 function GetPingSeconds()
     if not _56 then return 0 end
+    if not PingPredictionEnabled then return 0 end
     local now = os.clock()
     if now - _pingCacheAt < 0.5 then return _pingCache end
     _pingCacheAt = now
     local ok, ping = pcall(function()
-        return game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
+        local item = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]
+        if not item then return nil end
+        return item:GetValue()
     end)
-    _pingCache = (ok and ping) and (ping * 0.001) * PingPredictionScale or 0
+    if ok and type(ping) == "number" and ping == ping then
+        _pingCache = (ping * 0.001) * PingPredictionScale
+    else
+        _pingCache = 0
+    end
     return _pingCache
 end
 
-function UpdatePrediction(target, resolvedPos)
+function UpdatePrediction(target, resolvedPos, rawPos)
     if not PredictionEnabled then
         predictionVelocity = Vector3.new(0, 0, 0)
         predictionLastPos = nil
         predictionLastTime = 0
         return resolvedPos
     end
+
+    local sample = rawPos or resolvedPos
+    local now2 = os.clock()
+    if predictionLastPos and predictionLastTime > 0 then
+        local dt = now2 - predictionLastTime
+        if dt > 0.001 and dt < 0.5 then
+            local newVel = (sample - predictionLastPos) / dt
+            predictionVelocity = predictionVelocity:Lerp(newVel, predictionSmooth)
+        end
+    end
+    predictionLastPos  = sample
+    predictionLastTime = now2
+
+    local targetVel = predictionVelocity
     if ResolverEnabled and target then
         local rvel = ResolverGetVelocity(target)
-        if rvel.Magnitude > 0.01 then predictionVelocity = rvel end
-    else
-        local now2 = os.clock()
-        if predictionLastPos and predictionLastTime > 0 then
-            local dt = now2 - predictionLastTime
-            if dt > 0.001 and dt < 0.5 then
-                local invDt = 1 / dt
-                local newVel = (resolvedPos - predictionLastPos) * invDt
-                predictionVelocity = predictionVelocity:Lerp(newVel, 0.45)
-            end
-        end
-        predictionLastPos  = resolvedPos
-        predictionLastTime = now2
+        if rvel.Magnitude > 0.01 then targetVel = rvel end
     end
-    local t = PredictionMultiplier
-    local ahead = predictionVelocity * t
-    if ResolverEnabled and target then
-        local raccel = ResolverGetAcceleration(target)
-        ahead = ahead + raccel * (0.5 * t * t)
+
+    local lead = targetVel * PredictionMultiplier
+    local ping = PingPredictionEnabled and GetPingSeconds() or 0
+    if ping > 0 then
+        lead = lead + targetVel * ping * PredictionMultiplier
     end
-    if PingPredictionEnabled then ahead = ahead * (1 + GetPingSeconds()) end
-    return resolvedPos + ahead
+
+    return sample + lead
 end
 
 function ResolveTargetPosition(target)
-    if not target or not target.Character then return nil, nil end
+    if not target or not target.Character then return nil, nil, nil end
     local char = target.Character
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+
+    if ResolverMode == "cluster" then
+        if not hrp or not hrp.Parent or IsVoidPosition(hrp.Position) then
+            if lastValidTargetCFrame then
+                return lastValidTargetCFrame, lastValidTargetCFrame.Position, lastValidTargetCFrame.Position
+            end
+            return nil, nil, nil
+        end
+        if ResolverEnabled then ClusterUpdate(target, hrp) end
+        local st = ClusterStates[target]
+        local finalPos = hrp.Position
+        local rawFinalPos = finalPos
+        if LastAnchorPos then
+            local dx = finalPos.X - LastAnchorPos.X
+            local dy = finalPos.Y - LastAnchorPos.Y
+            local dz = finalPos.Z - LastAnchorPos.Z
+            local distSq = dx * dx + dy * dy + dz * dz
+            local rate = (distSq > AnchorFastMoveDist * AnchorFastMoveDist) and AnchorSmoothRateFast or AnchorSmoothRate
+            finalPos = LastAnchorPos:Lerp(finalPos, rate)
+        end
+        LastAnchorPos = finalPos
+        local newLook
+        if st and st.confidence >= ClusterPeakThreshold then
+            newLook = Vector3.new(-math.sin(st.realYaw), 0, -math.cos(st.realYaw))
+        else
+            newLook = hrp.CFrame.LookVector
+        end
+        if LastAnchorLook then newLook = LastAnchorLook:Lerp(newLook, ClusterLookSmooth) end
+        LastAnchorLook = newLook
+        local finalCF = CFrame.new(finalPos, finalPos + newLook)
+        lastValidTargetCFrame = finalCF
+        lastValidTargetPos = finalPos
+        lastValidTargetPosTime = os.clock()
+        return finalCF, finalPos, rawFinalPos
+    end
+
     local sumX, sumY, sumZ = 0, 0, 0
     local totalWeight = 0
     local samples = {}
@@ -13537,8 +16968,8 @@ function ResolveTargetPosition(target)
         end
     end
     if sampleCount == 0 then
-        if lastValidTargetCFrame then return lastValidTargetCFrame, lastValidTargetCFrame.Position end
-        return nil, nil
+        if lastValidTargetCFrame then return lastValidTargetCFrame, lastValidTargetCFrame.Position, lastValidTargetCFrame.Position end
+        return nil, nil, nil
     end
     local invTotal = 1 / totalWeight
     local centroid = Vector3.new(sumX * invTotal, sumY * invTotal, sumZ * invTotal)
@@ -13564,6 +16995,8 @@ function ResolveTargetPosition(target)
     end
     local invKept = 1 / keptWeight
     local finalPos = Vector3.new(keptX * invKept, keptY * invKept, keptZ * invKept)
+    local rawFinalPos = finalPos
+
     if LastAnchorPos then
         local dx = finalPos.X - LastAnchorPos.X
         local dy = finalPos.Y - LastAnchorPos.Y
@@ -13580,8 +17013,8 @@ function ResolveTargetPosition(target)
     lastValidTargetCFrame = finalCF
     lastValidTargetPos = finalPos
     lastValidTargetPosTime = os.clock()
-    ResolverUpdate(target, finalPos)
-    return finalCF, finalPos
+    ResolverUpdate(target, rawFinalPos)
+    return finalCF, finalPos, rawFinalPos
 end
 
 function GetOrbitAnchorCFrame(target)
@@ -13591,9 +17024,9 @@ function GetOrbitAnchorCFrame(target)
         return CFrame.new(resolvedPredictedPos, resolvedPredictedPos + look), resolvedPredictedPos
     end
     resolverLastRun = now
-    local cf, pos = ResolveTargetPosition(target)
+    local cf, pos, rawPos = ResolveTargetPosition(target)
     if not cf then return nil, resolvedPredictedPos or lastValidTargetPos end
-    local predicted = UpdatePrediction(target, pos)
+    local predicted = UpdatePrediction(target, pos, rawPos)
     resolvedPredictedPos = predicted
     if DirectCFramePrediction then
         local look = LastAnchorLook or cf.LookVector
@@ -13699,9 +17132,6 @@ function ReturnToRealWorld()
             local ok, projected = pcall(ProjectToGround, target)
             if ok and projected then target = projected end
         end
-        EngagementActive = false
-        Disengaging = false
-        disengageAt = 0
         if not target then
             hrp.Anchored = false
             hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
@@ -14071,6 +17501,7 @@ function StartDisengage()
     if not EngagementActive then return end
     if Disengaging then return end
     Disengaging = true
+    EngagementActive = false
     disengageAt = os.clock() + DisengageDelay
     ForceReturnPoint()
 end
@@ -14090,6 +17521,7 @@ function HandleTargetLost()
     end
     if EngagementActive and not Disengaging then
         Disengaging = true
+        EngagementActive = false
         disengageAt = os.clock() + DisengageDelay
         ForceReturnPoint()
     end
@@ -14259,17 +17691,30 @@ function Orbit(dt)
     local reloading = UpdateReloadingState()
 
     if Disengaging then
-        if disengageAt > 0 and os.clock() >= disengageAt then
+        local nowDis = os.clock()
+        if disengageAt > 0 and nowDis >= disengageAt then
+            Disengaging = false
             disengageAt = 0
-            Disengaging = false
             EngagementActive = false
-            task.spawn(function() pcall(function() ReturnToRealWorld() end) end)
-        elseif disengageAt == 0 then
-            Disengaging = false
-            EngagementActive = false
-        else
-            return
+            ReleaseSnapWeld()
+            releasePullTarget()
+            local doReturn = ReturnSet and ReturnCFrame ~= nil and IsSelfAlive()
+            if doReturn then
+                task.spawn(function() pcall(ReturnToRealWorld) end)
+            else
+                local hrpNow = GetSelfHRP()
+                if hrpNow then
+                    pcall(function()
+                        hrpNow.Anchored = false
+                        hrpNow.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                        hrpNow.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                    end)
+                end
+                ReleaseLocal()
+                ClearReturnPoint()
+            end
         end
+        return
     end
 
     UpdateSelfAnchor()
@@ -14283,6 +17728,12 @@ function Orbit(dt)
         lastTargetPlayer = nil
         respawnPending = false
         StartDisengage()
+        return
+    end
+
+    if IsWaitingForRespawn(target) then
+        local hrp = GetSelfHRP()
+        if hrp and ReturnCFrame then pcall(function() hrp.CFrame = ReturnCFrame end) end
         return
     end
 
@@ -14347,8 +17798,8 @@ function Orbit(dt)
         lastValidTargetPos = nil
         lastValidTargetCFrame = nil
         orbitRandomOffset = nil
-        lastTargetCharacter = nil
-        lastTargetPlayer = nil
+        lastTargetCharacter = target.Character
+        lastTargetPlayer = target
         respawnPending = false
         lastSnapTime = 0
         predictionLastPos = nil
@@ -14361,11 +17812,7 @@ function Orbit(dt)
         OrbitLastHeight = nil
         SnapPhase = "off"
         SnapPhaseUntil = 0
-    end
-
-    if IsWaitingForRespawn(target) then
-        if hrp and ReturnCFrame then pcall(function() hrp.CFrame = ReturnCFrame end) end
-        return
+        ClusterStates[target] = nil
     end
 
     CaptureReturnPoint()
@@ -14548,12 +17995,32 @@ if Toggles.PredictionToggle then
         predictionLastPos = nil
         predictionLastTime = 0
         predictionVelocity = Vector3.new(0, 0, 0)
+        resolvedPredictedPos = nil
     end)
 end
 if Options.PredictionMultiplier then Options.PredictionMultiplier:OnChanged(function(value) PredictionMultiplier = value end) end
-if Toggles.PingPredictionToggle then Toggles.PingPredictionToggle:OnChanged(function(value) PingPredictionEnabled = value end) end
-if Options.PingPredictionScale then Options.PingPredictionScale:OnChanged(function(value) PingPredictionScale = value end) end
+if Options.PredictionClosingSpeed then Options.PredictionClosingSpeed:OnChanged(function(value) PredictionClosingSpeed = value end) end
+if Toggles.PingPredictionToggle then
+    Toggles.PingPredictionToggle:OnChanged(function(value)
+        PingPredictionEnabled = value
+        _pingCache = 0
+        _pingCacheAt = 0
+    end)
+end
+if Options.PingPredictionScale then
+    Options.PingPredictionScale:OnChanged(function(value)
+        PingPredictionScale = value
+        _pingCache = 0
+        _pingCacheAt = 0
+    end)
+end
 if Toggles.DirectCFramePredictionToggle then Toggles.DirectCFramePredictionToggle:OnChanged(function(value) DirectCFramePrediction = value end) end
+if Options.ResolverMode then
+    Options.ResolverMode:OnChanged(function(value)
+        ResolverMode = value
+        ResolverClear()
+    end)
+end
 
 if Toggles.PullToMe then
     Toggles.PullToMe:OnChanged(function(v)
@@ -18536,9 +22003,11 @@ function createLabel(player)
         ESPGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
         ESPGui.Parent = game:GetService("CoreGui")
     end
-    
+
     local label = Instance.new("TextLabel")
     label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     label.TextStrokeTransparency = 0
     label.TextSize = 13
     label.Font = Enum.Font.GothamBold
@@ -18546,6 +22015,7 @@ function createLabel(player)
     label.BorderSizePixel = 0
     label.TextXAlignment = Enum.TextXAlignment.Center
     label.TextYAlignment = Enum.TextYAlignment.Center
+    label.RichText = true
     label.Visible = false
     label.ZIndex = 10
     label.Parent = ESPGui
@@ -18571,25 +22041,39 @@ function getHeadPos(head)
         return Vector2.new(pos.X, pos.Y - yOffset), dist, true
     end
 end
+function colorToHex(c)
+    return string.format("#%02X%02X%02X",
+        math.floor(c.R * 255 + 0.5),
+        math.floor(c.G * 255 + 0.5),
+        math.floor(c.B * 255 + 0.5))
+end
+
+function getESPNameColor()
+    return (Options.ESPNameColor and Options.ESPNameColor.Value) or Color3.fromRGB(255, 255, 255)
+end
 
 function buildText(player)
     local parts = {}
+    local nameColor = getESPNameColor()
+    local distColor = (Options.ESPDistanceColor and Options.ESPDistanceColor.Value) or Color3.fromRGB(200, 200, 200)
+    local hpColor = (Options.ESPHealthColor and Options.ESPHealthColor.Value) or Color3.fromRGB(200, 200, 200)
+
     if Toggles.ESPShowNames and Toggles.ESPShowNames.Value then
-        table.insert(parts, player.DisplayName)
+        table.insert(parts, string.format('<font color="%s">%s</font>', colorToHex(nameColor), player.DisplayName))
     end
     if Toggles.ESPShowDistance and Toggles.ESPShowDistance.Value then
         local char = player.Character
         local head = char and char:FindFirstChild("Head")
         if head then
             local dist = math.floor((Camera.CFrame.Position - head.Position).Magnitude)
-            table.insert(parts, "[" .. dist .. "m]")
+            table.insert(parts, string.format('<font color="%s">[%dm]</font>', colorToHex(distColor), dist))
         end
     end
     if Toggles.ESPShowHealth and Toggles.ESPShowHealth.Value then
         local char = player.Character
         local hum = char and char:FindFirstChild("Humanoid")
         if hum then
-            table.insert(parts, math.floor(hum.Health) .. " HP")
+            table.insert(parts, string.format('<font color="%s">%d HP</font>', colorToHex(hpColor), math.floor(hum.Health)))
         end
     end
     return #parts > 0 and table.concat(parts, " ") or ""
@@ -18598,46 +22082,46 @@ end
 function updateLabel(player)
     local label = ESP.labels[player]
     if not label then return end
-    
+
     local char = player.Character
     if not char or not char.Parent then
         label.Visible = false
         return
     end
-    
+
     local hum = char:FindFirstChild("Humanoid")
     if not hum or hum.Health <= 0 then
         label.Visible = false
         return
     end
-    
+
     local head = char:FindFirstChild("Head")
     if not head then
         label.Visible = false
         return
     end
-    
+
     local text = buildText(player)
     if text == "" then
         label.Visible = false
         return
     end
-    
+
     local pos, dist, onScreen = getHeadPos(head)
     if not onScreen then
         label.Visible = false
         return
     end
-    
+
     if label.Text ~= text then
         label.Text = text
     end
-    
+
     local posX, posY = math.round(pos.X), math.round(pos.Y)
     if label.Position.X.Offset ~= posX or label.Position.Y.Offset ~= posY then
         label.Position = UDim2.new(0, posX, 0, posY)
     end
-    
+
     local size = 13
     if dist > 150 then
         size = math.clamp(13 - ((dist - 150) / 200), 8, 13)
@@ -18645,30 +22129,7 @@ function updateLabel(player)
     if label.TextSize ~= size then
         label.TextSize = size
     end
-    
-    if ESP.cache[player] and ESP.cache[player] == char then
-        if not label.Visible then label.Visible = true end
-        return
-    end
-    
-    local isFriend = shared.FriendsCache and shared.FriendsCache[player.UserId]
-    local isTarget = _104 and _104.targetplayer == player
-    
-    if isTarget then
-        label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-        label.TextSize = 14
-        label.Font = Enum.Font.GothamBold
-    elseif isFriend then
-        label.TextColor3 = Color3.fromRGB(0, 200, 255)
-        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-        label.Font = Enum.Font.GothamBold
-    else
-        label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-        label.Font = Enum.Font.GothamBold
-    end
-    
+
     ESP.cache[player] = char
     label.Visible = true
 end
@@ -18776,6 +22237,227 @@ _52.Heartbeat:Connect(function()
         _104:CheckHitNotifications()
     end
 end)
+
+if _G.Combat and _G.Combat.Stop then
+    pcall(_G.Combat.Stop)
+end
+
+C = {
+    Auto = false,
+    SkipKO = true,
+    Gun = "Equipped",
+    Bullets = 20,
+    Burst = 2,
+    Busy = false,
+    Running = true,
+    Remote = nil,
+}
+_G.Combat = C
+
+rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+function path(...)
+    local cur = RS
+    for _, name in ipairs({ ... }) do
+        cur = cur and cur:FindFirstChild(name)
+    end
+    return cur
+end
+
+function findRemote()
+    local direct = path("GameRemotes", "MainGameEvent")
+        or path("Events", "Main")
+        or path("MainRemotes", "MainRemoteEvent")
+        or path("MainEvent")
+        or path("MainRemoteEvent")
+        or path("StompEvent")
+        or path("Events", "MainServer")
+    if direct then return direct end
+
+    for _, v in ipairs(RS:GetDescendants()) do
+        if v:IsA("RemoteEvent") or v:IsA("UnreliableRemoteEvent") then
+            local n = v.Name:lower()
+            if n:find("maingame") or n:find("mainremote") or n:find("shoot") then
+                return v
+            end
+        end
+    end
+    return nil
+end
+
+function getRemote()
+    if C.Remote and C.Remote.Parent then return C.Remote end
+    C.Remote = findRemote()
+    return C.Remote
+end
+
+function isKnocked(char)
+    local fx = char:FindFirstChild("BodyEffects")
+    if not fx then return false end
+    local ko = fx:FindFirstChild("K.O")
+    local dead = fx:FindFirstChild("Dead")
+    return (ko and ko.Value == true) or (dead and dead.Value == true) or false
+end
+
+function getGun(name)
+    local char = LocalPlayer.Character
+    if name == "Equipped" then
+        return char and char:FindFirstChildOfClass("Tool")
+    end
+
+    local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    local found
+    for _, container in ipairs({ char, backpack }) do
+        if container then
+            local tool = container:FindFirstChild(name)
+            if tool and tool:IsA("Tool") then
+                local ammo = tool:FindFirstChild("Ammo")
+                if ammo and ammo.Value > 0 then return tool end
+                found = found or tool
+            end
+        end
+    end
+    return found
+end
+
+function clearLine(origin, part)
+    rayParams.FilterDescendantsInstances = { LocalPlayer.Character, part.Parent }
+    return Workspace:Raycast(origin, part.Position - origin, rayParams) == nil
+end
+
+function buildPacked(part, count)
+    local pos = part.Position
+    local packed = table.create(count)
+    for i = 1, count do
+        packed[i] = {
+            AimPosition = pos,
+            RawAimPosition = pos,
+            Result1 = pos,
+            Result2 = part,
+            Result3 = part.Name,
+            AimLockPart = part,
+        }
+    end
+    packed._ohKa = true
+    return packed
+end
+
+function path_in(root, ...)
+    local cur = root
+    for _, name in ipairs({ ... }) do
+        cur = cur and cur:FindFirstChild(name)
+    end
+    return cur
+end
+
+function fire(gun, part)
+    local remote = getRemote()
+    if not remote then return end
+
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    if gun.Parent ~= char then
+        hum:EquipTool(gun)
+        task.wait(0.1)
+    end
+
+    local handle = gun:FindFirstChild("Handle")
+    local range = gun:FindFirstChild("Range")
+    local damage = gun:FindFirstChild("Damage")
+    local ammo = gun:FindFirstChild("Ammo")
+    if not (handle and range and damage) then return end
+
+    local origin = handle.Position
+    local muzzle = path_in(gun, "Default", "Mesh", "Muzzle")
+    if muzzle then origin = muzzle.WorldPosition end
+
+    if (origin - part.Position).Magnitude > range.Value then return end
+    if not clearLine(origin, part) then return end
+
+    local packed = buildPacked(part, C.Bullets)
+    for _ = 1, C.Burst do
+        if ammo and ammo.Value <= 0 then break end
+        pcall(function()
+            remote:FireServer("ShootGun", handle, origin, packed, nil, nil, nil, range.Value, damage.Value)
+        end)
+    end
+end
+
+CombatLoop = task.spawn(function()
+    while C.Running do
+        task.wait(0.05)
+        if C.Auto and not C.Busy then
+            local target = _G.HitmanCurrentTarget
+            local char = target and target.Character
+            if char and not (C.SkipKO and isKnocked(char)) then
+                local part = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+                local gun = part and getGun(C.Gun)
+                if gun then
+                    C.Busy = true
+                    pcall(fire, gun, part)
+                    C.Busy = false
+                end
+            end
+        end
+    end
+end)
+
+function CombatStop()
+    C.Running = false
+    C.Auto = false
+    C.Busy = false
+    if CombatLoop then pcall(task.cancel, CombatLoop) CombatLoop = nil end
+    if _G.Combat == C then _G.Combat = nil end
+end
+
+C.Stop = CombatStop
+
+CombatGroup = Ragebot:AddLeftGroupbox("Instant Kill :3")
+
+CombatGroup:AddToggle("AutoFireEnabled", {
+    Text = "Instant Kill",
+    Default = false,
+    Tooltip = "Fires at the current aim target",
+	Searchable = true,
+})
+
+CombatGroup:AddToggle("SkipKOToggle", {
+    Text = "K.O Check",
+    Default = true,
+    Tooltip = "Do not shoot targets that are K.O or dead",
+})
+
+CombatGroup:AddDropdown("KillAllGun", {
+    Text = "Weapon",
+    Values = { "Equipped", "[TacticalShotgun]", "[Double-Barrel SG]", "[Revolver]", "[Knife]" },
+    Default = "Equipped",
+})
+
+CombatGroup:AddSlider("KillAllBullets", {
+    Text = "Bullets Per Target",
+    Default = 20,
+    Min = 1, Max = 100, Rounding = 0,
+})
+
+CombatGroup:AddSlider("CombatBurst", {
+    Text = "Burst Count",
+    Default = 2,
+    Min = 1, Max = 5, Rounding = 0,
+    Tooltip = "Remote fires per tick",
+})
+
+Toggles.AutoFireEnabled:OnChanged(function(v) C.Auto = v end)
+Toggles.SkipKOToggle:OnChanged(function(v) C.SkipKO = v end)
+Options.KillAllGun:OnChanged(function(v) C.Gun = v end)
+Options.KillAllBullets:OnChanged(function(v) C.Bullets = math.floor(v) end)
+Options.CombatBurst:OnChanged(function(v) C.Burst = math.floor(v) end)
+
+if Library and Library.OnUnload then
+    Library:OnUnload(CombatStop)
+end
 
 -- deflect
 
@@ -20748,8 +24430,6 @@ _56.CharacterAdded:Connect(function()
     _G.IsReloading = false
 end)
 
-loadstring(game:HttpGet('https://raw.githubusercontent.com/madeformeanduu/UR4/refs/heads/main/Supporting/Commands.lua'))()
-
 _AA_cache = nil
 _AA_busy = false
 _AA_connections = {}
@@ -20991,19 +24671,37 @@ function _AA_buy()
         task.wait(0.3)
     end
 
+    local wasOrbitActive = OrbitEnabled
+    local savedOrbitState = EngagementActive
+    local savedReturnCF = ReturnCFrame
+    local savedReturnSet = ReturnSet
+
+    if wasOrbitActive then
+        StopOrbit()
+        task.wait(0.1)
+    end
+
     local ch = _56.Character or _56.CharacterAdded:Wait()
     if not ch then
         _AA_busy = false
+        if wasOrbitActive then
+            OrbitEnabled = true
+            StartOrbit()
+        end
         return
     end
 
     local rt = ch:FindFirstChild("HumanoidRootPart")
     if not rt then
         _AA_busy = false
+        if wasOrbitActive then
+            OrbitEnabled = true
+            StartOrbit()
+        end
         return
     end
 
-    local hum = ch:FindFirstChild("Humanoid")
+    local hum = ch:FindFirstChildOfClass("Humanoid")
     local originalPos = rt.CFrame
 
     local t0 = tick()
@@ -21082,6 +24780,14 @@ function _AA_buy()
                 )
             end
         end)
+    end
+
+    if wasOrbitActive then
+        OrbitEnabled = true
+        EngagementActive = savedOrbitState
+        ReturnCFrame = savedReturnCF
+        ReturnSet = savedReturnSet
+        StartOrbit()
     end
 end
 
@@ -21553,7 +25259,7 @@ Cleaner:BindUnload(_48)
 Cleaner:Start(30)
 
 -- for das hood
-if game.PlaceId == 89723161599525 then pcall(function() loadstring(game:HttpGet('https://raw.githubusercontent.com/madeformeanduu/UR4/refs/heads/main/Supporting/RangeHelper.lua'))() end) end
+if game.PlaceId == 89723161599525 then pcall(function() loadstring(game:HttpGet('https://raw.githubusercontent.com/imcomingforyou6959-gif/UR4/refs/heads/main/Supporting/RangeHelper.lua'))() end) end
 
 loadstring(game:HttpGet('https://raw.githubusercontent.com/madeformeanduu/UR4/refs/heads/main/Supporting/Jumpc.lua'))()
 
