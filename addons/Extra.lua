@@ -5091,7 +5091,7 @@ function Library:CreateESPPreview()
         ZIndex = 52,
     }, { BackgroundColor3 = "BackgroundColor" })
 
-    ESP.World = New("WorldModel", {}, nil)
+    ESP.World = Instance.new("WorldModel")
     ESP.World.Parent = ESP.Viewport
     ESP.Camera = Instance.new("Camera")
     ESP.Camera.FieldOfView = 50
@@ -5167,6 +5167,10 @@ function Library:CreateESPPreview()
 
     function ESP:Refresh()
         Reroll()
+    end
+
+    function ESP:Reroll()
+        return Reroll()
     end
 
     function ESP:Center()
