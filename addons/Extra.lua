@@ -4837,358 +4837,102 @@ end;
 Players.PlayerAdded:Connect(OnPlayerChange);
 Players.PlayerRemoving:Connect(OnPlayerChange);
 
-function Library:CreateESPPreview()
-    local ESP = {}
-    local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
-    local UserInputService = game:GetService("UserInputService")
+local ESPPreview = {} do
+    ESPPreview.Library = nil
+    ESPPreview.Folder = 'espPreviewForRawr/ESPPreview'
+    ESPPreview.Instance = nil
+    ESPPreview.Toggle = nil
+    ESPPreview.Groupbox = nil
+    ESPPreview._Visible = false
 
-    local LocalPlayer = Players.LocalPlayer
-    local Connections = {}
-    local Destroyed = false
-
-    local BONES = {
-        { "Head", "UpperTorso" },
-        { "UpperTorso", "LowerTorso" },
-        { "UpperTorso", "LeftUpperArm" },
-        { "LeftUpperArm", "LeftLowerArm" },
-        { "LeftLowerArm", "LeftHand" },
-        { "UpperTorso", "RightUpperArm" },
-        { "RightUpperArm", "RightLowerArm" },
-        { "RightLowerArm", "RightHand" },
-        { "LowerTorso", "LeftUpperLeg" },
-        { "LeftUpperLeg", "LeftLowerLeg" },
-        { "LeftLowerLeg", "LeftFoot" },
-        { "LowerTorso", "RightUpperLeg" },
-        { "RightUpperLeg", "RightLowerLeg" },
-        { "RightLowerLeg", "RightFoot" },
-    }
-
-    local White = Color3.fromRGB(255, 255, 255)
-    local Black = Color3.fromRGB(0, 0, 0)
-
-    local Cfg = {
-        Enabled = false,
-        Side = "Right",
-        Gap = 6,
-        Width = 250,
-        Height = 330,
-        Spin = true,
-        SpinSpeed = 40,
-        Zoom = 8,
-        Pitch = 6,
-        Yaw = 25,
-    }
-
-    local Clone = nil
-    local Parts = {}
-    local Target = nil
-    local Orbit = false
-    local Hover = false
-    local LastCheck = 0
-    local CharConn = nil
-
-    local function Connect(signal, callback)
-        local conn = signal:Connect(callback)
-        table.insert(Connections, conn)
-        return conn
+    function ESPPreview:SetLibrary(library)
+        self.Library = library
     end
 
-    local function New(class, props, regProps)
-        local inst = Library:Create(class, props)
-        if regProps then Library:AddToRegistry(inst, regProps) end
-        return inst
+    function ESPPreview:SetFolder(folder)
+        self.Folder = folder
+        if not isfolder(folder) then makefolder(folder) end
     end
 
-    local function MakeText(parent, text, props)
-        local base = {
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            Font = Library.Font,
-            Text = text,
-            TextSize = 13,
-            TextColor3 = Library.FontColor,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextYAlignment = Enum.TextYAlignment.Center,
-            TextStrokeTransparency = 0.5,
-            ZIndex = 16,
-        }
-        for k, v in pairs(props or {}) do base[k] = v end
-        return New("TextLabel", base, { TextColor3 = "FontColor" })
+    function ESPPreview:Ensure()
+        if self.Instance then return self.Instance end
+        if not self.Library then
+            error("ESPPreview:SetLibrary must be called before Ensure")
+        end
+        if type(self.Library.CreateESPPreview) ~= "function" then
+            error("Library.CreateESPPreview is missing — is Library.lua up to date?")
+        end
+        self.Instance = self.Library:CreateESPPreview()
+        self.Instance:SetVisibility(false)
+        getgenv().ESPPreview = self.Instance
+        return self.Instance
     end
 
-    local function ClearClone()
-        if Clone then pcall(function() Clone:Destroy() end) end
-        Clone = nil
-        Parts = {}
+    function ESPPreview:SetVisible(value)
+        self._Visible = value and true or false
+        if self._Visible then
+            local inst = self:Ensure()
+            if inst.SetVisibility then inst:SetVisibility(true) end
+        else
+            if self.Instance and self.Instance.SetVisibility then
+                self.Instance:SetVisibility(false)
+            end
+        end
     end
 
-    local function ValidCandidate(p)
-        if p == LocalPlayer then return false end
-        local char = p.Character
-        if not char then return false end
-        if not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Head") then return false end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        return hum ~= nil and hum.Health > 0
-    end
+    function ESPPreview:BuildESPPreviewSection(tab)
+        assert(self.Library, "ESPPreview:SetLibrary must be called before BuildESPPreviewSection")
 
-    local function BuildClone(plr)
-        ClearClone()
-        local char = plr and plr.Character
-        if not char then return false end
+        local box = tab:AddRightGroupbox('Widgets')
+        self.Groupbox = box
 
-        local ok, c = pcall(function()
-            local old = char.Archivable
-            char.Archivable = true
-            local cl = char:Clone()
-            char.Archivable = old
-            return cl
+        local toggle = box:AddToggle('ESPPreviewVisible', {
+            Text = 'ESP Preview',
+            Default = false,
+        })
+        self.Toggle = toggle
+
+        toggle:OnChanged(function(Value)
+            ESPPreview:SetVisible(Value)
         end)
-        if not ok or not c then return false end
 
-        local hrp = c:FindFirstChild("HumanoidRootPart")
-        if not hrp or not c:FindFirstChild("Head") then
-            c:Destroy()
-            return false
-        end
+        toggle:AddKeyPicker('ESPPreviewKeybind', {
+            Default = 'RightShift',
+            SyncToggleState = true,
+            Mode = 'Toggle',
+            Text = 'Bind',
+            NoUI = false,
+        })
 
-        local list = {}
-        for _, d in ipairs(c:GetDescendants()) do
-            if d:IsA("BaseScript") or d:IsA("ModuleScript") or d:IsA("Animator")
-                or d:IsA("ForceField") or d:IsA("Highlight") or d:IsA("BillboardGui")
-                or d:IsA("SurfaceGui") or d:IsA("ParticleEmitter") or d:IsA("Trail")
-                or d:IsA("Beam") or d:IsA("Sound") or d:IsA("Light") then
-                pcall(function() d:Destroy() end)
-            elseif d:IsA("BasePart") then
-                d.Anchored = true
-                d.CanCollide = false
-                d.CanQuery = false
-                d.CanTouch = false
-                if d ~= hrp and d.Transparency < 1 then
-                    list[#list + 1] = d
-                end
+        box:AddButton('Reroll Target', function()
+            if ESPPreview.Instance and ESPPreview.Instance.Reroll then
+                ESPPreview.Instance:Reroll()
             end
-        end
-
-        if #list < 6 then c:Destroy() return false end
-
-        local hum = c:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-            hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
-        end
-
-        c.Name = "\0"
-        c.PrimaryPart = hrp
-        c.Parent = ESP.World
-        c:PivotTo(CFrame.new(0, 0, 0))
-
-        Clone = c
-        Parts = list
-        return true
-    end
-
-    local function SetTarget(plr)
-        if CharConn then pcall(function() CharConn:Disconnect() end) CharConn = nil end
-        Target = plr
-        if not plr then ClearClone() return false end
-        local ok = BuildClone(plr)
-        CharConn = plr.CharacterAdded:Connect(function()
-            task.wait(0.8)
-            if Target == plr then BuildClone(plr) end
         end)
-        return ok
-    end
 
-    local function Reroll()
-        local list = {}
-        for _, p in ipairs(Players:GetPlayers()) do
-            if ValidCandidate(p) then list[#list + 1] = p end
+        -- This ensures the panel is created (hidden) so it's ready when toggled
+        self:Ensure()
+
+        if toggle.Value then
+            ESPPreview:SetVisible(true)
         end
-        if #list == 0 then
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p == LocalPlayer and p.Character then list[#list + 1] = p end
-            end
+
+        return box
+    end
+
+    function ESPPreview:Unload()
+        if self.Instance and self.Instance.SetVisibility then
+            self.Instance:SetVisibility(false)
         end
-        for _ = 1, math.min(#list, 6) do
-            local pick = table.remove(list, math.random(#list))
-            if SetTarget(pick) then return pick end
+        if self.Instance and self.Instance.Destroy then
+            self.Instance:Destroy()
         end
-        if LocalPlayer.Character and SetTarget(LocalPlayer) then return LocalPlayer end
-        return nil
+        self.Instance = nil
+        getgenv().ESPPreview = nil
     end
-
-    local function Project(cam, pos, size)
-        local rel = cam.CFrame:PointToObjectSpace(pos)
-        local depth = -rel.Z
-        if depth <= 0.05 then return nil end
-        local f = 1 / math.tan(math.rad(cam.FieldOfView) / 2)
-        local aspect = size.X / size.Y
-        local nx = (rel.X * f / aspect) / depth
-        local ny = (rel.Y * f) / depth
-        return Vector2.new((nx * 0.5 + 0.5) * size.X, (0.5 - ny * 0.5) * size.Y)
-    end
-
-    ESP.Panel = New("Frame", {
-        Name = "\0ESPPreview",
-        Position = UDim2.new(0, 30, 0, 250),
-        Size = UDim2.fromOffset(Cfg.Width, Cfg.Height),
-        BackgroundColor3 = Library.MainColor,
-        BorderColor3 = Black,
-        ClipsDescendants = true,
-        Visible = false,
-        ZIndex = 50,
-    }, { BackgroundColor3 = "MainColor" })
-    Library:MakeDraggable(ESP.Panel, 24)
-
-    ESP.Inner = New("Frame", {
-        Position = UDim2.fromOffset(1, 1),
-        Size = UDim2.new(1, -2, 1, -2),
-        BackgroundColor3 = Library.MainColor,
-        BorderColor3 = Library.OutlineColor,
-        BorderMode = Enum.BorderMode.Inset,
-        ZIndex = 51,
-    }, { BackgroundColor3 = "MainColor"; BorderColor3 = "OutlineColor" })
-
-    ESP.Accent = New("Frame", {
-        Size = UDim2.new(1, 0, 0, 2),
-        BackgroundColor3 = Library.AccentColor,
-        BorderSizePixel = 0,
-        ZIndex = 52,
-    }, { BackgroundColor3 = "AccentColor" })
-
-    ESP.Title = MakeText(ESP.Inner, "ESP Preview", {
-        Position = UDim2.fromOffset(6, 4),
-        Size = UDim2.new(0.5, -6, 0, 16),
-        ZIndex = 53,
-    })
-
-    ESP.TargetName = MakeText(ESP.Inner, "", {
-        Position = UDim2.new(0.5, 0, 0, 4),
-        Size = UDim2.new(0.5, -6, 0, 16),
-        TextXAlignment = Enum.TextXAlignment.Right,
-        TextColor3 = Color3.fromRGB(140, 143, 153),
-        ZIndex = 53,
-    })
-
-    ESP.Stage = New("Frame", {
-        Position = UDim2.fromOffset(4, 24),
-        Size = UDim2.new(1, -8, 1, -56),
-        BackgroundColor3 = Library.BackgroundColor,
-        BorderColor3 = Library.OutlineColor,
-        BorderMode = Enum.BorderMode.Inset,
-        ClipsDescendants = true,
-        ZIndex = 52,
-    }, { BackgroundColor3 = "BackgroundColor"; BorderColor3 = "OutlineColor" })
-
-    ESP.Viewport = New("ViewportFrame", {
-        Size = UDim2.fromScale(1, 1),
-        BackgroundColor3 = Library.BackgroundColor,
-        BorderSizePixel = 0,
-        Ambient = Color3.fromRGB(165, 165, 165),
-        LightColor = White,
-        LightDirection = Vector3.new(-1, -2, -1),
-        ZIndex = 52,
-    }, { BackgroundColor3 = "BackgroundColor" })
-
-    ESP.World = Instance.new("WorldModel")
-    ESP.World.Parent = ESP.Viewport
-    ESP.Camera = Instance.new("Camera")
-    ESP.Camera.FieldOfView = 50
-    ESP.Camera.Parent = ESP.Viewport
-    ESP.Viewport.CurrentCamera = ESP.Camera
-
-    ESP.RerollBtn = New("TextButton", {
-        AnchorPoint = Vector2.new(0, 1),
-        Position = UDim2.new(0, 4, 1, -4),
-        Size = UDim2.new(0.5, -6, 0, 20),
-        BackgroundColor3 = Library.MainColor,
-        BorderColor3 = Black,
-        BorderMode = Enum.BorderMode.Inset,
-        AutoButtonColor = false,
-        Font = Library.Font,
-        Text = "Reroll",
-        TextSize = 13,
-        TextColor3 = Library.FontColor,
-        ZIndex = 53,
-    }, { BackgroundColor3 = "MainColor"; TextColor3 = "FontColor" })
-
-    Connect(ESP.RerollBtn.MouseButton1Click, function() Reroll() end)
-
-    ESP.Hit = New("TextButton", {
-        Size = UDim2.fromScale(1, 1),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Text = "",
-        AutoButtonColor = false,
-        ZIndex = 55,
-    })
-
-    Connect(ESP.Hit.MouseEnter, function() Hover = true end)
-    Connect(ESP.Hit.MouseLeave, function() Hover = false end)
-    Connect(ESP.Hit.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then Orbit = true end
-    end)
-    Connect(UserInputService.InputEnded, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then Orbit = false end
-    end)
-    Connect(UserInputService.InputChanged, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement and Orbit then
-            Cfg.Yaw = (Cfg.Yaw + input.Delta.X * 0.6) % 360
-            Cfg.Pitch = math.clamp(Cfg.Pitch + input.Delta.Y * 0.3, -15, 60)
-        elseif input.UserInputType == Enum.UserInputType.MouseWheel and Hover then
-            Cfg.Zoom = math.clamp(Cfg.Zoom - input.Position.Z * 0.8, 3, 22)
-        end
-    end)
-
-    Connect(RunService.RenderStepped, function(dt)
-        if Destroyed or not ESP.Panel.Visible then return end
-        Cfg.Yaw = (Cfg.Yaw + Cfg.SpinSpeed * dt) % 360
-        if Clone and Clone.Parent then
-            Clone:PivotTo(CFrame.Angles(0, math.rad(Cfg.Yaw), 0))
-        end
-        local focus = Vector3.new(0, -0.1, 0)
-        local off = CFrame.Angles(-math.rad(Cfg.Pitch), 0, 0):VectorToWorldSpace(Vector3.new(0, 0, Cfg.Zoom))
-        ESP.Camera.CFrame = CFrame.lookAt(focus + off, focus)
-        if os.clock() - LastCheck >= 1 then
-            LastCheck = os.clock()
-            if not Target or Target.Parent ~= Players or (Target ~= LocalPlayer and not ValidCandidate(Target)) then
-                Reroll()
-            end
-        end
-        ESP.TargetName.Text = Target and Target.Name or "none"
-    end)
-
-    function ESP:SetVisibility(value)
-        Cfg.Enabled = value and true or false
-        ESP.Panel.Visible = Cfg.Enabled
-        if Cfg.Enabled and not Clone then Reroll() end
-    end
-
-    function ESP:Refresh()
-        Reroll()
-    end
-
-    function ESP:Reroll()
-        return Reroll()
-    end
-
-    function ESP:Center()
-        ESP.Panel.Position = UDim2.new(0, 30, 0, 250)
-    end
-
-    function ESP:Destroy()
-        Destroyed = true
-        for _, c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
-        Connections = {}
-        if CharConn then pcall(function() CharConn:Disconnect() end) end
-        ClearClone()
-        if ESP.Panel then ESP.Panel:Destroy() end
-    end
-
-    Reroll()
-    return ESP
 end
+
+return ESPPreview
 
 function Library:CreateSpotifyPlayer()
     local Spotify = {}
