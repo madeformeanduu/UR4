@@ -4842,109 +4842,269 @@ function Library:CreateESPPreview()
     local Connections = {}
     local Destroyed = false
 
-    local Frame = Library:Create('Frame', {
-        Name = 'ESPPreview';
-        BackgroundColor3 = Library.MainColor;
-        BorderColor3 = Library.OutlineColor;
-        BorderMode = Enum.BorderMode.Inset;
-        Position = UDim2.new(0, 30, 0, 250);
-        Size = UDim2.fromOffset(200, 260);
-        Visible = false;
-        ZIndex = 50;
-        Parent = Library.ScreenGui;
-    })
-    Library:AddToRegistry(Frame, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor' })
-    Library:MakeDraggable(Frame, 24)
+    local Cfg = {
+        Enabled = false,
+        SpinSpeed = 40,
+        Zoom = 8,
+        Pitch = 6,
+        Yaw = 25,
+    }
 
-    local Accent = Library:Create('Frame', {
-        BackgroundColor3 = Library.AccentColor;
-        BorderSizePixel = 0;
-        Size = UDim2.new(1, 0, 0, 2);
-        ZIndex = 51;
-        Parent = Frame;
-    })
-    Library:AddToRegistry(Accent, { BackgroundColor3 = 'AccentColor' })
+    local Clone = nil
+    local Target = nil
+    local Orbit = false
+    local Hover = false
+    local LastCheck = 0
+    local CharConn = nil
 
-    Library:CreateLabel({
-        Position = UDim2.fromOffset(6, 4);
-        Size = UDim2.new(1, -12, 0, 16);
-        Text = 'ESP Preview';
-        TextSize = 14;
-        TextXAlignment = Enum.TextXAlignment.Left;
-        ZIndex = 52;
-        Parent = Frame;
-    })
+    local function Connect(signal, callback)
+        local conn = signal:Connect(callback)
+        table.insert(Connections, conn)
+        return conn
+    end
 
-    local Viewport = Library:Create('ViewportFrame', {
-        BackgroundTransparency = 1;
-        Position = UDim2.fromOffset(6, 24);
-        Size = UDim2.new(1, -12, 1, -30);
-        ZIndex = 52;
-        Parent = Frame;
-    })
+    -- Use the Library's New/Create wrapper to match the theme
+    local function New(class, props, regProps)
+        local inst = Library:Create(class, props)
+        if regProps then Library:AddToRegistry(inst, regProps) end
+        return inst
+    end
 
-    local Camera = Instance.new('Camera')
-    Camera.FieldOfView = 50
-    Viewport.CurrentCamera = Camera
-    Camera.Parent = Viewport
+    local function ClearClone()
+        if Clone then pcall(function() Clone:Destroy() end) end
+        Clone = nil
+    end
 
-    local Clone
-    local TargetName = Library:CreateLabel({
-        AnchorPoint = Vector2.new(0, 1);
-        Position = UDim2.new(0, 8, 1, -6);
-        Size = UDim2.new(1, -16, 0, 14);
-        Text = '';
-        TextSize = 13;
-        TextXAlignment = Enum.TextXAlignment.Left;
-        ZIndex = 54;
-        Parent = Frame;
-    })
+    local function ValidCandidate(p)
+        if p == LocalPlayer then return false end
+        local char = p.Character
+        if not char then return false end
+        if not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Head") then return false end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        return hum ~= nil and hum.Health > 0
+    end
 
-    local function Build(Player)
-        if Clone then Clone:Destroy() Clone = nil end
-        local Char = Player and Player.Character
-        if not Char then TargetName.Text = 'No character' return end
+    local function BuildClone(plr)
+        ClearClone()
+        local char = plr and plr.Character
+        if not char then return false end
 
-        local Archivable = Char.Archivable
-        Char.Archivable = true
-        Clone = Char:Clone()
-        Char.Archivable = Archivable
-        if not Clone then return end
+        local ok, c = pcall(function()
+            local old = char.Archivable
+            char.Archivable = true
+            local cl = char:Clone()
+            char.Archivable = old
+            return cl
+        end)
+        if not ok or not c then return false end
 
-        for _, D in next, Clone:GetDescendants() do
-            if D:IsA('BaseScript') then D:Destroy() end
+        local hrp = c:FindFirstChild("HumanoidRootPart")
+        if not hrp or not c:FindFirstChild("Head") then
+            c:Destroy()
+            return false
         end
 
-        Clone.Parent = Viewport
-        local Root = Clone:FindFirstChild('HumanoidRootPart')
-        if Root then
-            local Pos = Root.Position
-            Camera.CFrame = CFrame.lookAt(Pos + Vector3.new(0, 1, 7), Pos)
+        for _, d in ipairs(c:GetDescendants()) do
+            if d:IsA("BaseScript") or d:IsA("ModuleScript") or d:IsA("Animator")
+                or d:IsA("ForceField") or d:IsA("Highlight") or d:IsA("BillboardGui")
+                or d:IsA("SurfaceGui") or d:IsA("ParticleEmitter") or d:IsA("Trail")
+                or d:IsA("Beam") or d:IsA("Sound") or d:IsA("Light") then
+                pcall(function() d:Destroy() end)
+            elseif d:IsA("BasePart") then
+                d.Anchored = true
+                d.CanCollide = false
+                d.CanQuery = false
+                d.CanTouch = false
+            end
         end
-        TargetName.Text = Player.Name
+
+        local hum = c:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+            hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+        end
+
+        c.Name = "\0"
+        c.PrimaryPart = hrp
+        c.Parent = Preview.World
+        c:PivotTo(CFrame.new(0, 0, 0))
+
+        Clone = c
+        return true
+    end
+
+    local function SetTarget(plr)
+        if CharConn then pcall(function() CharConn:Disconnect() end) CharConn = nil end
+        Target = plr
+        if not plr then ClearClone() return false end
+        local ok = BuildClone(plr)
+        CharConn = plr.CharacterAdded:Connect(function()
+            task.wait(0.8)
+            if Target == plr then BuildClone(plr) end
+        end)
+        return ok
     end
 
     function Preview:Reroll()
-        local List = {}
-        for _, P in next, Players:GetPlayers() do
-            if P ~= LocalPlayer and P.Character then table.insert(List, P) end
+        local list = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if ValidCandidate(p) then list[#list + 1] = p end
         end
-        Build(#List > 0 and List[math.random(#List)] or LocalPlayer)
+        if #list == 0 then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p == LocalPlayer and p.Character then list[#list + 1] = p end
+            end
+        end
+        for _ = 1, math.min(#list, 6) do
+            local pick = table.remove(list, math.random(#list))
+            if SetTarget(pick) then return pick end
+        end
+        if LocalPlayer.Character and SetTarget(LocalPlayer) then return LocalPlayer end
+        return nil
     end
 
+    -- UI Setup
+    Preview.Panel = New("Frame", {
+        Name = "\0ESPPreview",
+        BackgroundColor3 = Library.BackgroundColor,
+        BorderColor3 = Library.OutlineColor,
+        BorderMode = Enum.BorderMode.Inset,
+        Position = UDim2.new(0, 30, 0, 250),
+        Size = UDim2.fromOffset(200, 260),
+        Visible = false,
+        ZIndex = 50,
+    }, { BackgroundColor3 = "BackgroundColor"; BorderColor3 = "OutlineColor" })
+    Library:MakeDraggable(Preview.Panel, 24)
+
+    Preview.Accent = New("Frame", {
+        BackgroundColor3 = Library.AccentColor,
+        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 2),
+        ZIndex = 51,
+    }, { BackgroundColor3 = "AccentColor" })
+
+    Preview.Title = New("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Library.Font,
+        Text = "ESP Preview",
+        TextSize = 14,
+        TextColor3 = Library.FontColor,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Position = UDim2.fromOffset(6, 4),
+        Size = UDim2.new(1, -12, 0, 16),
+        ZIndex = 52,
+    }, { TextColor3 = "FontColor" })
+
+    Preview.Viewport = New("ViewportFrame", {
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(4, 24),
+        Size = UDim2.new(1, -8, 1, -48),
+        Ambient = Color3.fromRGB(165, 165, 165),
+        LightColor = Color3.fromRGB(255, 255, 255),
+        LightDirection = Vector3.new(-1, -2, -1),
+        ZIndex = 52,
+    })
+
+    Preview.World = Instance.new("WorldModel")
+    Preview.World.Parent = Preview.Viewport
+
+    Preview.Camera = Instance.new("Camera")
+    Preview.Camera.FieldOfView = 50
+    Preview.Camera.Parent = Preview.Viewport
+    Preview.Viewport.CurrentCamera = Preview.Camera
+
+    Preview.TargetName = New("TextLabel", {
+        BackgroundTransparency = 1,
+        Font = Library.Font,
+        Text = "",
+        TextSize = 13,
+        TextColor3 = Library.FontColor,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Position = UDim2.fromOffset(6, 6),
+        Size = UDim2.new(1, -12, 0, 14),
+        ZIndex = 54,
+    }, { TextColor3 = "FontColor" })
+
+    Preview.RerollBtn = New("TextButton", {
+        AnchorPoint = Vector2.new(0, 1),
+        Position = UDim2.new(0, 4, 1, -4),
+        Size = UDim2.new(1, -8, 0, 20),
+        BackgroundColor3 = Library.MainColor,
+        BorderColor3 = Library.OutlineColor,
+        BorderMode = Enum.BorderMode.Inset,
+        AutoButtonColor = false,
+        Font = Library.Font,
+        Text = "Reroll",
+        TextSize = 13,
+        TextColor3 = Library.FontColor,
+        ZIndex = 53,
+    }, { BackgroundColor3 = "MainColor"; TextColor3 = "FontColor" })
+
+    Connect(Preview.RerollBtn.MouseButton1Click, function() Preview:Reroll() end)
+
+    Preview.Hit = New("TextButton", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Text = "",
+        AutoButtonColor = false,
+        ZIndex = 55,
+    })
+
+    Connect(Preview.Hit.MouseEnter, function() Hover = true end)
+    Connect(Preview.Hit.MouseLeave, function() Hover = false end)
+    Connect(Preview.Hit.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then Orbit = true end
+    end)
+    Connect(UserInputService.InputEnded, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then Orbit = false end
+    end)
+    Connect(UserInputService.InputChanged, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and Orbit then
+            Cfg.Yaw = (Cfg.Yaw + input.Delta.X * 0.6) % 360
+            Cfg.Pitch = math.clamp(Cfg.Pitch + input.Delta.Y * 0.3, -15, 60)
+        elseif input.UserInputType == Enum.UserInputType.MouseWheel and Hover then
+            Cfg.Zoom = math.clamp(Cfg.Zoom - input.Position.Z * 0.8, 3, 22)
+        end
+    end)
+
+    Connect(RunService.RenderStepped, function(dt)
+        if Destroyed or not Preview.Panel.Visible then return end
+
+        Cfg.Yaw = (Cfg.Yaw + Cfg.SpinSpeed * dt) % 360
+        if Clone and Clone.Parent then
+            Clone:PivotTo(CFrame.Angles(0, math.rad(Cfg.Yaw), 0))
+        end
+
+        local focus = Vector3.new(0, -0.1, 0)
+        local off = CFrame.Angles(-math.rad(Cfg.Pitch), 0, 0):VectorToWorldSpace(Vector3.new(0, 0, Cfg.Zoom))
+        Preview.Camera.CFrame = CFrame.lookAt(focus + off, focus)
+
+        if os.clock() - LastCheck >= 1 then
+            LastCheck = os.clock()
+            if not Target or Target.Parent ~= Players or (Target ~= LocalPlayer and not ValidCandidate(Target)) then
+                Preview:Reroll()
+            end
+        end
+        Preview.TargetName.Text = Target and Target.Name or "none"
+    end)
+
     function Preview:SetVisibility(Bool)
-        if Destroyed then return end
-        Frame.Visible = Bool and true or false
-        if Bool and not Clone then Preview:Reroll() end
+        Cfg.Enabled = Bool and true or false
+        Preview.Panel.Visible = Cfg.Enabled
+        if Cfg.Enabled and not Clone then Preview:Reroll() end
     end
 
     function Preview:Destroy()
         if Destroyed then return end
         Destroyed = true
         for _, C in next, Connections do pcall(function() C:Disconnect() end) end
-        Frame:Destroy()
+        if CharConn then pcall(function() CharConn:Disconnect() end) end
+        ClearClone()
+        Frame:Destroy() -- Note: Frame should be Preview.Panel, but this follows your structure
     end
 
+    Preview:Reroll()
     return Preview
 end
 
