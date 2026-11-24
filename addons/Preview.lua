@@ -73,6 +73,9 @@ local ESPPreview = {} do
             end
         end)
 
+        -- Ensure the panel exists immediately (hidden) so the Reroll button works
+        self:Ensure()
+
         if toggle.Value then
             ESPPreview:SetVisible(true)
         end
@@ -81,8 +84,13 @@ local ESPPreview = {} do
     end
 
     function ESPPreview:Unload()
-        if self.Instance and self.Instance.SetVisibility then
-            self.Instance:SetVisibility(false)
+        if self.Instance then
+            if self.Instance.SetVisibility then
+                self.Instance:SetVisibility(false)
+            end
+            if self.Instance.Destroy then
+                self.Instance:Destroy()
+            end
         end
         self.Instance = nil
         getgenv().ESPPreview = nil
