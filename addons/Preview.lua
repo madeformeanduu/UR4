@@ -68,13 +68,12 @@ local ESPPreview = {} do
         })
 
         box:AddButton('Reroll Target', function()
+            -- Force it to ensure the instance exists before rerolling
+            ESPPreview:Ensure()
             if ESPPreview.Instance and ESPPreview.Instance.Reroll then
                 ESPPreview.Instance:Reroll()
             end
         end)
-
-        -- Ensure the panel exists immediately (hidden) so the Reroll button works
-        self:Ensure()
 
         if toggle.Value then
             ESPPreview:SetVisible(true)
