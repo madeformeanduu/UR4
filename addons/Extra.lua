@@ -178,6 +178,8 @@ function EnsureLogoAsset()
     return nil
 end
 
+local LogoAsset = EnsureLogoAsset()
+
 local ScreenGui = Instance.new('ScreenGui');
 ProtectGui(ScreenGui);
 
@@ -291,7 +293,6 @@ function Library:SafeCallback(f, ...)
     local success, event = pcall(f, ...);
 
     if not success then
-        event = tostring(event);
         local _, i = event:find(":%d+: ");
 
         if not i then
@@ -303,8 +304,8 @@ function Library:SafeCallback(f, ...)
 end;
 
 function Library:AttemptSave()
-    if Library.SaveManager and Library.SaveManager.LoadedConfig then
-        Library.SaveManager:Save(Library.SaveManager.LoadedConfig);
+    if Library.SaveManager then
+        Library.SaveManager:Save();
     end;
 end;
 
@@ -761,20 +762,19 @@ function Library:Unload()
     -- Unload all of the signals
     for Idx = #Library.Signals, 1, -1 do
         local Connection = table.remove(Library.Signals, Idx)
-        pcall(function() Connection:Disconnect() end)
+        Connection:Disconnect()
     end
 
-    -- Call our unload callback, maybe to undo some hooks etc
-    if type(Library.UnloadCallback) == 'function' then
-        pcall(Library.UnloadCallback)
+     -- Call our unload callback, maybe to undo some hooks etc
+    if Library.OnUnload then
+        Library.OnUnload()
     end
 
     ScreenGui:Destroy()
 end
 
--- FIX: the callback used to be stored in Library.OnUnload, which overwrote this very method.
 function Library:OnUnload(Callback)
-    Library.UnloadCallback = Callback
+    Library.OnUnload = Callback
 end
 
 Library:GiveSignal(ScreenGui.DescendantRemoving:Connect(function(Instance)
@@ -1204,11 +1204,8 @@ do
         RgbBox.FocusLost:Connect(function(enter)
             if enter then
                 local r, g, b = RgbBox.Text:match('(%d+),%s*(%d+),%s*(%d+)')
-                r, g, b = tonumber(r), tonumber(g), tonumber(b)
                 if r and g and b then
-                    ColorPicker.Hue, ColorPicker.Sat, ColorPicker.Vib = Color3.toHSV(Color3.fromRGB(
-                        math.clamp(r, 0, 255), math.clamp(g, 0, 255), math.clamp(b, 0, 255)
-                    ))
+                    ColorPicker.Hue, ColorPicker.Sat, ColorPicker.Vib = Color3.toHSV(Color3.fromRGB(r, g, b))
                 end
             end
 
@@ -1329,6 +1326,7 @@ do
             end
         end);
 
+        -- [TOUCH] long press opens the copy/paste menu (right click replacement)
         Library:OnLongPress(DisplayFrame, function()
             ContextMenu:Show()
             ColorPicker:Hide()
@@ -1579,8 +1577,7 @@ do
                         or Key == 'MB2' and InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
                         or Key == 'MB3' and InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton3);
                 else
-                    local KeyCode = Enum.KeyCode[KeyPicker.Value];
-                    return KeyCode ~= nil and InputService:IsKeyDown(KeyCode);
+                    return InputService:IsKeyDown(Enum.KeyCode[KeyPicker.Value]);
                 end;
             else
                 return KeyPicker.Toggled;
@@ -1591,9 +1588,7 @@ do
             local Key, Mode = Data[1], Data[2];
             DisplayLabel.Text = Key;
             KeyPicker.Value = Key;
-            if ModeButtons[Mode] then
-                ModeButtons[Mode]:Select();
-            end;
+            ModeButtons[Mode]:Select();
             KeyPicker:Update();
         end;
 
@@ -2284,7 +2279,7 @@ do
                     end
                 end)
                 task.delay(timeout, function()
-                    connection:Disconnect()
+                    connection:disconnect()
                     bindable:Fire(false)
                 end)
                 return bindable.Event:Wait()
@@ -3159,17 +3154,15 @@ do
             ItemList.Text = (Str == '' and '--' or Str);
         end;
 
-        -- FIX: always returns a number (how many values are selected). Previously Multi dropdowns
-        -- returned a table, so the `== 1` check never matched and a non-nullable Multi could be emptied.
         function Dropdown:GetActiveValues()
             if Info.Multi then
-                local Count = 0;
+                local T = {};
 
-                for _ in next, Dropdown.Value do
-                    Count = Count + 1;
+                for Value, Bool in next, Dropdown.Value do
+                    table.insert(T, Value);
                 end;
 
-                return Count;
+                return T;
             else
                 return Dropdown.Value and 1 or 0;
             end;
@@ -3322,11 +3315,9 @@ do
             if Dropdown.Multi then
                 local nTable = {};
 
-                if type(Val) == 'table' then
-                    for Value, Bool in next, Val do
-                        if table.find(Dropdown.Values, Value) then
-                            nTable[Value] = true
-                        end;
+                for Value, Bool in next, Val do
+                    if table.find(Dropdown.Values, Value) then
+                        nTable[Value] = true
                     end;
                 end;
 
@@ -3355,8 +3346,7 @@ do
             end;
         end);
 
-        -- FIX: now tracked so Library:Unload() disconnects it
-        Library:GiveSignal(InputService.InputBegan:Connect(function(Input)
+        InputService.InputBegan:Connect(function(Input)
             if IsClick(Input) then
                 local AbsPos, AbsSize = ListOuter.AbsolutePosition, ListOuter.AbsoluteSize;
 
@@ -3366,7 +3356,7 @@ do
                     Dropdown:CloseDropdown();
                 end;
             end;
-        end));
+        end);
 
         Dropdown:BuildDropdownList();
         Dropdown:Display();
@@ -3507,6 +3497,20 @@ do
     end;
 end;
 
+-- =====================================================================
+-- Notifications
+--
+--   Library:Notify('Text')                       -> top left, 5 seconds
+--   Library:Notify('Text', 15)                   -> top left, 15 seconds
+--   Library:Notify('Text', 15, 'topright')       -> top right
+--   Library:Notify('Text', 'bottom')             -> (time optional) bottom, 5 seconds
+--
+-- Positions: topleft, top, topright, left, center, right,
+--            bottomleft, bottom, bottomright
+-- (also accepts things like 'top right', 'top_right', 'tr', 'bl', 'middle'...)
+--
+-- Library:SetNotifyPosition('topright') changes the default for all notifications.
+-- =====================================================================
 local NotifyPositions = {
     topleft     = { Anchor = Vector2.new(0, 0);   Position = UDim2.new(0, 0, 0, 40);     Align = Enum.HorizontalAlignment.Left;   Reverse = false; };
     top         = { Anchor = Vector2.new(0.5, 0); Position = UDim2.new(0.5, 0, 0, 40);   Align = Enum.HorizontalAlignment.Center; Reverse = false; };
@@ -3904,6 +3908,8 @@ function Library:CreateWindow(...)
         BorderColor3 = 'AccentColor';
     });
 
+    local LOGO_WIDTH  = 300
+    local LOGO_HEIGHT = 100
     local LogoAsset = EnsureLogoAsset()
     local TopOffset = 0
 
@@ -4828,9 +4834,8 @@ local function OnPlayerChange()
     end;
 end;
 
--- FIX: tracked so Library:Unload() disconnects them
-Library:GiveSignal(Players.PlayerAdded:Connect(OnPlayerChange));
-Library:GiveSignal(Players.PlayerRemoving:Connect(OnPlayerChange));
+Players.PlayerAdded:Connect(OnPlayerChange);
+Players.PlayerRemoving:Connect(OnPlayerChange);
 
 function Library:CreateSpotifyPlayer()
     local Spotify = {}
@@ -4849,11 +4854,7 @@ function Library:CreateSpotifyPlayer()
     local CacheFolder   = SpotifyFolder .. "/Cache"
     local TokenPath     = (Library.Directory or "spotifyforRawr") .. "/token.txt"
     local PlaceholderImage = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-
-    -- polling: fast while the menu is open, slow while it is closed
-    local PollIntervalOpen   = 1     -- seconds, UI open (or player expanded)
-    local PollIntervalClosed = 6     -- seconds, UI closed
-    local QueueIntervalOpen  = 5     -- seconds, how often the queue is refetched (only while expanded)
+    local PollInterval  = 1
 
     if not isfolder(SpotifyFolder) then makefolder(SpotifyFolder) end
     if not isfolder(CacheFolder)   then makefolder(CacheFolder)   end
@@ -4890,12 +4891,8 @@ function Library:CreateSpotifyPlayer()
         return (readfile(TokenPath):gsub("^%s*(.-)%s*$", "%1"))
     end
 
-    local function Trim(s)
-        return (tostring(s or ""):gsub("^%s*(.-)%s*$", "%1"))
-    end
-
     local function DecodeTokenConfig(RawToken)
-        local Clean = Trim(RawToken)
+        local Clean = (RawToken or ""):gsub("^%s*(.-)%s*$", "%1")
         if Clean == "" then
             return { Raw="", AccessToken="", RefreshToken="", ClientId="", ClientSecret="", ExpiresAt=0 }
         end
@@ -4908,11 +4905,10 @@ function Library:CreateSpotifyPlayer()
         end
         return {
             Raw = Clean,
-            AccessToken  = Trim(parsed.access_token or parsed.token),
-            RefreshToken = Trim(parsed.refresh_token),
-            ClientId     = Trim(parsed.client_id),
-            ClientSecret = Trim(parsed.client_secret),
-            -- stored as os.time() based epoch so it survives restarts (tick() also is epoch based, kept for compat)
+            AccessToken  = tostring(parsed.access_token  or parsed.token or ""):gsub("^%s*(.-)%s*$","%1"),
+            RefreshToken = tostring(parsed.refresh_token or ""):gsub("^%s*(.-)%s*$","%1"),
+            ClientId     = tostring(parsed.client_id     or ""):gsub("^%s*(.-)%s*$","%1"),
+            ClientSecret = tostring(parsed.client_secret or ""):gsub("^%s*(.-)%s*$","%1"),
             ExpiresAt    = tonumber(parsed.expires_at) or 0,
         }
     end
@@ -4969,9 +4965,6 @@ function Library:CreateSpotifyPlayer()
     local VolumeDragging = false
     local VolumeLockUntil = 0
     local LastVolumeSent = 0
-    local LastQueueFetch = 0
-    local CachedQueue = {}
-    local Refreshing = false
 
     local LyricsCache           = {}
     local CurrentLyrics         = {}
@@ -5372,7 +5365,6 @@ function Library:CreateSpotifyPlayer()
                 end)
                 task.wait(0.7)
                 SkippingTo = false
-                LastQueueFetch = 0
                 Spotify:Refresh()
             end)
         end)
@@ -5563,6 +5555,10 @@ function Library:CreateSpotifyPlayer()
     end
     SetVolumeUI(50)
 
+    if Icons["Previous"] then
+        Icons["Previous"].Rotation = 180
+    end
+
     Items["ExpandButton"] = New("ImageButton", {
         Name="\0", Parent=Items["SpotifyPlayer"],
         AnchorPoint=Vector2.new(1,0), Position=UDim2.new(1,-8,0,8),
@@ -5655,7 +5651,6 @@ function Library:CreateSpotifyPlayer()
                 if t.Uri and t.Uri ~= "" then
                     AddToQueue(t.Uri)
                     Library:Notify("Added to queue", 2)
-                    LastQueueFetch = 0
                     RefreshSoon()
                 end
             end)
@@ -5663,8 +5658,8 @@ function Library:CreateSpotifyPlayer()
 
         local viewport = workspace.CurrentCamera.ViewportSize
         local menuSize = ContextMenuFrame.AbsoluteSize
-        local x = math.clamp(mouseX, 8, math.max(viewport.X - menuSize.X - 8, 8))
-        local y = math.clamp(mouseY, 8, math.max(viewport.Y - menuSize.Y - 8, 8))
+        local x = math.clamp(mouseX, 8, viewport.X - menuSize.X - 8)
+        local y = math.clamp(mouseY, 8, viewport.Y - menuSize.Y - 8)
         ContextMenuFrame.Position = UDim2.new(0, x, 0, y)
     end
 
@@ -5899,7 +5894,7 @@ function Library:CreateSpotifyPlayer()
         if trackName == "Unknown track" or artistName == "Unknown artist" then return nil end
 
         local primaryArtist = artistName:match("^([^,]+)") or artistName
-        primaryArtist = Trim(primaryArtist)
+        primaryArtist = primaryArtist:gsub("^%s*(.-)%s*$", "%1")
 
         local durationSec = durationMs and math.floor(durationMs / 1000) or nil
 
@@ -5968,11 +5963,6 @@ function Library:CreateSpotifyPlayer()
         scroll.CanvasSize = UDim2.new(0, 0, 0, h)
     end
 
-    -- escapes characters that would break RichText lyrics
-    local function EscapeRich(s)
-        return (tostring(s):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
-    end
-
     local function RenderLyrics(activeIndex)
         if not CurrentLyrics or #CurrentLyrics == 0 then return end
 
@@ -5984,14 +5974,13 @@ function Library:CreateSpotifyPlayer()
 
         local buf = {}
         for i, line in ipairs(CurrentLyrics) do
-            local safe = EscapeRich(line.Text)
             if i == activeIndex then
                 buf[#buf+1] = string.format(
                     "<font color=\"%s\"><b>%s</b></font>",
-                    accentHex, safe
+                    accentHex, line.Text
                 )
             else
-                buf[#buf+1] = safe
+                buf[#buf+1] = line.Text
             end
         end
         Items["LyricsText"].Text = table.concat(buf, "\n")
@@ -6074,7 +6063,7 @@ function Library:CreateSpotifyPlayer()
         CurrentLyrics = {}
         CurrentLyricsSynced = false
         CurrentHighlightIndex = 0
-        Items["LyricsText"].Text = EscapeRich(text)
+        Items["LyricsText"].Text = text
         Items["LyricsText"].TextColor3 = ThemeInactiveText
         local availX = Items["LyricsScroll"].AbsoluteSize.X
         if availX > 0 then
@@ -6092,29 +6081,10 @@ function Library:CreateSpotifyPlayer()
         CurrentLyrics = {}
         CurrentLyricsSynced = false
         CurrentHighlightIndex = 0
-        Items["LyricsText"].Text = EscapeRich(plain)
+        Items["LyricsText"].Text = plain
         Items["LyricsText"].TextColor3 = ThemeInactiveText
         ResizeLyricsCanvas()
         Items["LyricsScroll"].CanvasPosition = Vector2.new()
-    end
-
-    local function ApplySyncedLyrics(parsed, progressMs)
-        CurrentLyrics = parsed or {}
-        CurrentLyricsSynced = true
-        CurrentHighlightIndex = 0
-        Items["LyricsText"].TextColor3 = Library.FontColor
-        RenderLyrics(1)
-        local gen = LyricsRenderGen + 1
-        LyricsRenderGen = gen
-        if progressMs then
-            local idx = 1
-            for i, line in ipairs(CurrentLyrics) do
-                if line.Time <= progressMs then idx = i else break end
-            end
-            CurrentHighlightIndex = idx
-            RenderLyrics(idx)
-            ScrollToActiveLine(idx, gen)
-        end
     end
 
     local function LoadLyricsForTrack(track)
@@ -6129,7 +6099,23 @@ function Library:CreateSpotifyPlayer()
                 return
             end
             if cached.HasSynced then
-                ApplySyncedLyrics(cached.Parsed, track.Progress)
+                CurrentLyrics = cached.Parsed or {}
+                CurrentLyricsSynced = true
+                CurrentHighlightIndex = 0
+                Items["LyricsText"].TextColor3 = Library.FontColor
+                RenderLyrics(1)
+                local gen = LyricsRenderGen + 1
+                LyricsRenderGen = gen
+                if track.Progress then
+                    local ms = track.Progress
+                    local idx = 1
+                    for i, line in ipairs(CurrentLyrics) do
+                        if line.Time <= ms then idx = i else break end
+                    end
+                    CurrentHighlightIndex = idx
+                    RenderLyrics(idx)
+                    ScrollToActiveLine(idx, gen)
+                end
             else
                 SetLyricsPlain(cached.Plain ~= "" and cached.Plain or "No lyrics available.")
             end
@@ -6166,15 +6152,30 @@ function Library:CreateSpotifyPlayer()
                 Plain = result.Plain,
                 Synced = result.Synced,
                 Parsed = parsed,
-                HasSynced = result.HasSynced and #parsed > 0,
+                HasSynced = result.HasSynced,
                 Instrumental = false,
             }
 
-            if result.HasSynced and #parsed > 0 then
-                ApplySyncedLyrics(parsed, CurrentTrack and CurrentTrack.Progress)
+            if result.HasSynced then
+                CurrentLyrics = parsed
+                CurrentLyricsSynced = true
+                CurrentHighlightIndex = 0
+                Items["LyricsText"].TextColor3 = Library.FontColor
+                RenderLyrics(1)
+                local gen = LyricsRenderGen + 1
+                LyricsRenderGen = gen
+                if CurrentTrack and CurrentTrack.Progress then
+                    local ms = CurrentTrack.Progress
+                    local idx = 1
+                    for i, line in ipairs(CurrentLyrics) do
+                        if line.Time <= ms then idx = i else break end
+                    end
+                    CurrentHighlightIndex = idx
+                    RenderLyrics(idx)
+                    ScrollToActiveLine(idx, gen)
+                end
             else
-                local plain = result.Plain ~= "" and result.Plain or result.Synced
-                SetLyricsPlain(plain ~= "" and plain or "No lyrics available.")
+                SetLyricsPlain(result.Plain ~= "" and result.Plain or "No lyrics available.")
             end
         end)
     end
@@ -6263,7 +6264,6 @@ function Library:CreateSpotifyPlayer()
             CurrentLyrics = {}
             CurrentLyricsSynced = false
             CurrentHighlightIndex = 0
-            LastQueueFetch = 0 -- the queue changes when the track changes
             if SidebarTab == "lyrics" then
                 LoadLyricsForTrack(data)
             end
@@ -6292,12 +6292,12 @@ function Library:CreateSpotifyPlayer()
         local dok, payload = pcall(HttpService.JSONDecode, HttpService, resp.Body)
         if not dok or type(payload) ~= "table" or not payload.access_token then return false end
         TokenConfig.AccessToken = tostring(payload.access_token)
-        TokenConfig.ExpiresAt   = os.time() + math.max((tonumber(payload.expires_in) or 3600) - 30, 0)
+        TokenConfig.ExpiresAt   = tick() + math.max((tonumber(payload.expires_in) or 3600) - 30, 0)
         if payload.refresh_token and payload.refresh_token ~= "" then
             TokenConfig.RefreshToken = tostring(payload.refresh_token)
         end
         Token = TokenConfig.AccessToken
-        pcall(WriteToken, TokenConfig)
+        WriteToken(TokenConfig)
         return true
     end
 
@@ -6306,7 +6306,7 @@ function Library:CreateSpotifyPlayer()
             Token = TokenConfig.AccessToken
             return Token ~= ""
         end
-        if TokenConfig.AccessToken ~= "" and os.time() < (TokenConfig.ExpiresAt or 0) then
+        if TokenConfig.AccessToken ~= "" and tick() < (TokenConfig.ExpiresAt or 0) then
             Token = TokenConfig.AccessToken
             return true
         end
@@ -6334,13 +6334,6 @@ function Library:CreateSpotifyPlayer()
         if not ok or not resp then return nil end
         if resp.StatusCode == 401 and retryOnAuth ~= false and TokenConfig.RefreshToken ~= "" and RefreshAccessToken() then
             return MakeRequest(url, method, false, body)
-        end
-        if resp.StatusCode == 429 then
-            -- rate limited: back off, honouring Retry-After when present
-            local headers = resp.Headers or {}
-            local retry = tonumber(headers["Retry-After"] or headers["retry-after"]) or 5
-            Spotify.BackoffUntil = tick() + math.clamp(retry, 1, 60)
-            return nil
         end
         if resp.StatusCode < 200 or resp.StatusCode >= 300 then return nil end
         if not resp.Body or resp.Body == "" then return true end
@@ -6390,7 +6383,7 @@ function Library:CreateSpotifyPlayer()
     local function GetQueue()
         local d = MakeRequest("me/player/queue")
         local out = {}
-        if type(d) ~= "table" or type(d.queue) ~= "table" then return nil end
+        if type(d) ~= "table" or type(d.queue) ~= "table" then return out end
         for i, t in ipairs(d.queue) do
             if i > #QueueRows then break end
             local artists = {}
@@ -6733,7 +6726,7 @@ function Library:CreateSpotifyPlayer()
             Tween(Items["LyricsFrame"],      { Position = lyricsPos },     info)
             Tween(Items["ExpandButton"],     { Rotation = expandRot },     info)
         end
-        task.spawn(function() Spotify:Center() end)
+        Spotify:Center()
 
         if bool then
             if UserProfile then
@@ -6750,17 +6743,11 @@ function Library:CreateSpotifyPlayer()
                     LoadLyricsForTrack(CurrentTrack)
                 end
             end
-
-            -- the queue is only fetched while expanded, so grab it right away
-            if not instant then
-                LastQueueFetch = 0
-                task.spawn(function() Spotify:Refresh() end)
-            end
         end
     end
     
     local function RunSearch(query)
-        local trimmed = Trim(query)
+        local trimmed = (query or ""):gsub("^%s*(.-)%s*$", "%1")
         SearchAlbumBrowse = nil
         SearchGen = SearchGen + 1
         local myGen = SearchGen
@@ -6899,7 +6886,6 @@ function Library:CreateSpotifyPlayer()
         UserProfile = nil
         ProfileAttempted = false
         WriteToken(TokenConfig)
-        LastQueueFetch = 0
         Spotify:Refresh()
         if IsExpanded then LoadProfileAsync() end
     end
@@ -6907,12 +6893,8 @@ function Library:CreateSpotifyPlayer()
         Cleanup()
     end
 
-    -- Refreshes the player. The queue is only fetched while the player is expanded (it is
-    -- only shown there) and at most every QueueIntervalOpen seconds, or when the track changes.
     function Spotify:Refresh()
         if Destroyed then return false end
-        if Refreshing then return CurrentTrack ~= nil end
-        if Spotify.BackoffUntil and tick() < Spotify.BackoffUntil then return CurrentTrack ~= nil end
         if not Request then SetDisplay(nil, "Executor request API unavailable") return false end
         if Token == "" and TokenConfig.RefreshToken == "" then
             SetDisplay(nil, "Add a token or refresh config to " .. TokenPath)
@@ -6924,46 +6906,17 @@ function Library:CreateSpotifyPlayer()
         end
         if not EnsureAccessToken() then SetDisplay(nil, "Could not refresh Spotify token") return false end
 
-        Refreshing = true
-        local ok, result = pcall(function()
-            local track = GetCurrentTrack()
-            if Destroyed then return false end
-
-            if not track then
-                local me = MakeRequest("me")
-                if me == nil then
-                    if Spotify.BackoffUntil and tick() < Spotify.BackoffUntil then
-                        return false -- just rate limited, not an invalid token
-                    end
-                    SetDisplay(nil, "Invalid token in " .. TokenPath)
-                    return false
-                end
+        local track = GetCurrentTrack()
+        if not track then
+            local me = MakeRequest("me")
+            if me == nil then
+                SetDisplay(nil, "Invalid token in " .. TokenPath)
+                return false
             end
-
-            SetDisplay(track, "Nothing is currently playing")
-
-            if track and IsExpanded and (tick() - LastQueueFetch) >= QueueIntervalOpen then
-                local queue = GetQueue()
-                if Destroyed then return false end
-                if queue then
-                    CachedQueue = queue
-                    LastQueueFetch = tick()
-                end
-            end
-
-            if track then
-                SetQueueDisplay(track, CachedQueue, "No upcoming tracks.")
-            end
-
-            return track ~= nil
-        end)
-        Refreshing = false
-
-        if not ok then
-            warn("refresh error: " .. tostring(result))
-            return false
         end
-        return result
+        SetDisplay(track, "Nothing is currently playing")
+        SetQueueDisplay(track, GetQueue(), "No upcoming tracks.")
+        return track ~= nil
     end
 
     for i, btn in ResultButtons do
@@ -7097,7 +7050,6 @@ function Library:CreateSpotifyPlayer()
 
     Connect(Items["Shuffle"].MouseButton1Click, function()
         Shuffle(not (CurrentTrack and CurrentTrack.Shuffle))
-        LastQueueFetch = 0
         RefreshSoon()
     end)
 
@@ -7208,26 +7160,17 @@ function Library:CreateSpotifyPlayer()
         end
     end)
 
-    -- poll loop: ticks every 0.25s but only refreshes when the interval for the current state
-    -- has passed (1s while the UI is open / player expanded, 6s while the UI is closed), so
-    -- opening the menu makes it catch up almost immediately instead of waiting out the slow interval.
     task.spawn(function()
-        local lastPoll = 0
         while not Destroyed and Library and Items["SpotifyPlayer"] and Items["SpotifyPlayer"].Parent do
             if not SkippingTo then
-                local fast = Library.IsOpen or IsExpanded
-                local interval = fast and PollIntervalOpen or PollIntervalClosed
-                if tick() - lastPoll >= interval then
-                    lastPoll = tick()
-                    local ok, err = pcall(function()
-                        Spotify:Refresh()
-                    end)
-                    if not ok then
-                        warn("refresh error: " .. tostring(err))
-                    end
+                local ok, err = pcall(function()
+                    Spotify:Refresh()
+                end)
+                if not ok then
+                    warn("refresh error: " .. tostring(err))
                 end
             end
-            task.wait(0.25)
+            task.wait(PollInterval)
         end
     end)
 
@@ -7284,7 +7227,7 @@ function Library:CreateSpotifyPlayer()
     UpdateResults()
     SetSidebarTab("queue")
     SetExpanded(false, true)
-    task.spawn(function() Spotify:Center() end)
+    Spotify:Center()
     return Spotify
 end
 
