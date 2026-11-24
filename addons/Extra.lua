@@ -4837,102 +4837,116 @@ end;
 Players.PlayerAdded:Connect(OnPlayerChange);
 Players.PlayerRemoving:Connect(OnPlayerChange);
 
-local ESPPreview = {} do
-    ESPPreview.Library = nil
-    ESPPreview.Folder = 'espPreviewForRawr/ESPPreview'
-    ESPPreview.Instance = nil
-    ESPPreview.Toggle = nil
-    ESPPreview.Groupbox = nil
-    ESPPreview._Visible = false
+function Library:CreateESPPreview()
+    local Preview = {}
+    local Connections = {}
+    local Destroyed = false
 
-    function ESPPreview:SetLibrary(library)
-        self.Library = library
-    end
+    local Frame = Library:Create('Frame', {
+        Name = 'ESPPreview';
+        BackgroundColor3 = Library.MainColor;
+        BorderColor3 = Library.OutlineColor;
+        BorderMode = Enum.BorderMode.Inset;
+        Position = UDim2.new(0, 30, 0, 250);
+        Size = UDim2.fromOffset(200, 260);
+        Visible = false;
+        ZIndex = 50;
+        Parent = Library.ScreenGui;
+    })
+    Library:AddToRegistry(Frame, { BackgroundColor3 = 'MainColor'; BorderColor3 = 'OutlineColor' })
+    Library:MakeDraggable(Frame, 24)
 
-    function ESPPreview:SetFolder(folder)
-        self.Folder = folder
-        if not isfolder(folder) then makefolder(folder) end
-    end
+    local Accent = Library:Create('Frame', {
+        BackgroundColor3 = Library.AccentColor;
+        BorderSizePixel = 0;
+        Size = UDim2.new(1, 0, 0, 2);
+        ZIndex = 51;
+        Parent = Frame;
+    })
+    Library:AddToRegistry(Accent, { BackgroundColor3 = 'AccentColor' })
 
-    function ESPPreview:Ensure()
-        if self.Instance then return self.Instance end
-        if not self.Library then
-            error("ESPPreview:SetLibrary must be called before Ensure")
-        end
-        if type(self.Library.CreateESPPreview) ~= "function" then
-            error("Library.CreateESPPreview is missing — is Library.lua up to date?")
-        end
-        self.Instance = self.Library:CreateESPPreview()
-        self.Instance:SetVisibility(false)
-        getgenv().ESPPreview = self.Instance
-        return self.Instance
-    end
+    Library:CreateLabel({
+        Position = UDim2.fromOffset(6, 4);
+        Size = UDim2.new(1, -12, 0, 16);
+        Text = 'ESP Preview';
+        TextSize = 14;
+        TextXAlignment = Enum.TextXAlignment.Left;
+        ZIndex = 52;
+        Parent = Frame;
+    })
 
-    function ESPPreview:SetVisible(value)
-        self._Visible = value and true or false
-        if self._Visible then
-            local inst = self:Ensure()
-            if inst.SetVisibility then inst:SetVisibility(true) end
-        else
-            if self.Instance and self.Instance.SetVisibility then
-                self.Instance:SetVisibility(false)
-            end
-        end
-    end
+    local Viewport = Library:Create('ViewportFrame', {
+        BackgroundTransparency = 1;
+        Position = UDim2.fromOffset(6, 24);
+        Size = UDim2.new(1, -12, 1, -30);
+        ZIndex = 52;
+        Parent = Frame;
+    })
 
-    function ESPPreview:BuildESPPreviewSection(tab)
-        assert(self.Library, "ESPPreview:SetLibrary must be called before BuildESPPreviewSection")
+    local Camera = Instance.new('Camera')
+    Camera.FieldOfView = 50
+    Viewport.CurrentCamera = Camera
+    Camera.Parent = Viewport
 
-        local box = tab:AddRightGroupbox('Widgets')
-        self.Groupbox = box
+    local Clone
+    local TargetName = Library:CreateLabel({
+        AnchorPoint = Vector2.new(0, 1);
+        Position = UDim2.new(0, 8, 1, -6);
+        Size = UDim2.new(1, -16, 0, 14);
+        Text = '';
+        TextSize = 13;
+        TextXAlignment = Enum.TextXAlignment.Left;
+        ZIndex = 54;
+        Parent = Frame;
+    })
 
-        local toggle = box:AddToggle('ESPPreviewVisible', {
-            Text = 'ESP Preview',
-            Default = false,
-        })
-        self.Toggle = toggle
+    local function Build(Player)
+        if Clone then Clone:Destroy() Clone = nil end
+        local Char = Player and Player.Character
+        if not Char then TargetName.Text = 'No character' return end
 
-        toggle:OnChanged(function(Value)
-            ESPPreview:SetVisible(Value)
-        end)
+        local Archivable = Char.Archivable
+        Char.Archivable = true
+        Clone = Char:Clone()
+        Char.Archivable = Archivable
+        if not Clone then return end
 
-        toggle:AddKeyPicker('ESPPreviewKeybind', {
-            Default = 'RightShift',
-            SyncToggleState = true,
-            Mode = 'Toggle',
-            Text = 'Bind',
-            NoUI = false,
-        })
-
-        box:AddButton('Reroll Target', function()
-            if ESPPreview.Instance and ESPPreview.Instance.Reroll then
-                ESPPreview.Instance:Reroll()
-            end
-        end)
-
-        -- This ensures the panel is created (hidden) so it's ready when toggled
-        self:Ensure()
-
-        if toggle.Value then
-            ESPPreview:SetVisible(true)
+        for _, D in next, Clone:GetDescendants() do
+            if D:IsA('BaseScript') then D:Destroy() end
         end
 
-        return box
+        Clone.Parent = Viewport
+        local Root = Clone:FindFirstChild('HumanoidRootPart')
+        if Root then
+            local Pos = Root.Position
+            Camera.CFrame = CFrame.lookAt(Pos + Vector3.new(0, 1, 7), Pos)
+        end
+        TargetName.Text = Player.Name
     end
 
-    function ESPPreview:Unload()
-        if self.Instance and self.Instance.SetVisibility then
-            self.Instance:SetVisibility(false)
+    function Preview:Reroll()
+        local List = {}
+        for _, P in next, Players:GetPlayers() do
+            if P ~= LocalPlayer and P.Character then table.insert(List, P) end
         end
-        if self.Instance and self.Instance.Destroy then
-            self.Instance:Destroy()
-        end
-        self.Instance = nil
-        getgenv().ESPPreview = nil
+        Build(#List > 0 and List[math.random(#List)] or LocalPlayer)
     end
+
+    function Preview:SetVisibility(Bool)
+        if Destroyed then return end
+        Frame.Visible = Bool and true or false
+        if Bool and not Clone then Preview:Reroll() end
+    end
+
+    function Preview:Destroy()
+        if Destroyed then return end
+        Destroyed = true
+        for _, C in next, Connections do pcall(function() C:Disconnect() end) end
+        Frame:Destroy()
+    end
+
+    return Preview
 end
-
-return ESPPreview
 
 function Library:CreateSpotifyPlayer()
     local Spotify = {}
