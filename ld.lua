@@ -22929,236 +22929,258 @@ if _G.Combat and _G.Combat.Stop then
     pcall(_G.Combat.Stop)
 end
 
-C = {
-    Auto = false,
-    SkipKO = true,
-    Gun = "Equipped",
-    Bullets = 20,
-    Burst = 2,
+zX9_InstantKillState = {
+    Auto          = false,
+    SkipKO        = true,
+    Gun           = "Equipped",
+    Bullets       = 20,
+    Burst         = 2,
     BurstInterval = 0.5,
-    Busy = false,
-    Running = true,
-    Remote = nil,
+    Busy          = false,
+    Running       = true,
+    Remote        = nil,
 }
-_G.Combat = C
+_G.Combat = zX9_InstantKillState
 
-rayParams = RaycastParams.new()
-rayParams.FilterType = Enum.RaycastFilterType.Exclude
+pcall(function()
+    zX9_RayParams = RaycastParams.new()
+    zX9_RayParams.FilterType = Enum.RaycastFilterType.Exclude
+end)
 
-function path(...)
-    local cur = RS
-    for _, name in ipairs({ ... }) do
-        cur = cur and cur:FindFirstChild(name)
+function zX9_PathLookup(...)
+    zX9_Cur = RS
+    for _, zX9_Name in ipairs({ ... }) do
+        zX9_Cur = zX9_Cur and zX9_Cur:FindFirstChild(zX9_Name)
     end
-    return cur
+    return zX9_Cur
 end
 
-function findRemote()
-    local direct = path("GameRemotes", "MainGameEvent")
-        or path("Events", "Main")
-        or path("MainRemotes", "MainRemoteEvent")
-        or path("MainEvent")
-        or path("MainRemoteEvent")
-        or path("StompEvent")
-        or path("Events", "MainServer")
-    if direct then return direct end
+function zX9_FindRemoteEvent()
+    zX9_Direct = zX9_PathLookup("GameRemotes", "MainGameEvent")
+        or zX9_PathLookup("Events", "Main")
+        or zX9_PathLookup("MainRemotes", "MainRemoteEvent")
+        or zX9_PathLookup("MainEvent")
+        or zX9_PathLookup("MainRemoteEvent")
+        or zX9_PathLookup("StompEvent")
+        or zX9_PathLookup("Events", "MainServer")
+    if zX9_Direct then return zX9_Direct end
 
-    for _, v in ipairs(RS:GetDescendants()) do
-        if v:IsA("RemoteEvent") or v:IsA("UnreliableRemoteEvent") then
-            local n = v.Name:lower()
-            if n:find("maingame") or n:find("mainremote") or n:find("shoot") then
-                return v
+    for _, zX9_V in ipairs(RS:GetDescendants()) do
+        if zX9_V:IsA("RemoteEvent") or zX9_V:IsA("UnreliableRemoteEvent") then
+            zX9_N = zX9_V.Name:lower()
+            if zX9_N:find("maingame") or zX9_N:find("mainremote") or zX9_N:find("shoot") then
+                return zX9_V
             end
         end
     end
     return nil
 end
 
-function getRemote()
-    if C.Remote and C.Remote.Parent then return C.Remote end
-    C.Remote = findRemote()
-    return C.Remote
+function zX9_GetCachedRemote()
+    if zX9_InstantKillState.Remote and zX9_InstantKillState.Remote.Parent then 
+        return zX9_InstantKillState.Remote 
+    end
+    zX9_InstantKillState.Remote = zX9_FindRemoteEvent()
+    return zX9_InstantKillState.Remote
 end
 
-function isKnocked(char)
-    local fx = char:FindFirstChild("BodyEffects")
-    if not fx then return false end
-    local ko = fx:FindFirstChild("K.O")
-    local dead = fx:FindFirstChild("Dead")
-    return (ko and ko.Value == true) or (dead and dead.Value == true) or false
+function zX9_IsTargetKnocked(zX9_Char)
+    zX9_Fx = zX9_Char:FindFirstChild("BodyEffects")
+    if not zX9_Fx then return false end
+    zX9_Ko = zX9_Fx:FindFirstChild("K.O")
+    zX9_Dead = zX9_Fx:FindFirstChild("Dead")
+    return (zX9_Ko and zX9_Ko.Value == true) or (zX9_Dead and zX9_Dead.Value == true) or false
 end
 
-function getGun(name)
-    local char = LocalPlayer.Character
-    if name == "Equipped" then
-        return char and char:FindFirstChildOfClass("Tool")
+function zX9_FindWeapon(zX9_Name)
+    zX9_Char = LocalPlayer.Character
+    if zX9_Name == "Equipped" then
+        return zX9_Char and zX9_Char:FindFirstChildOfClass("Tool")
     end
 
-    local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-    local found
-    for _, container in ipairs({ char, backpack }) do
-        if container then
-            local tool = container:FindFirstChild(name)
-            if tool and tool:IsA("Tool") then
-                local ammo = tool:FindFirstChild("Ammo")
-                if ammo and ammo.Value > 0 then return tool end
-                found = found or tool
+    zX9_Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    zX9_Found = nil
+    for _, zX9_Container in ipairs({ zX9_Char, zX9_Backpack }) do
+        if zX9_Container then
+            zX9_Tool = zX9_Container:FindFirstChild(zX9_Name)
+            if zX9_Tool and zX9_Tool:IsA("Tool") then
+                zX9_Ammo = zX9_Tool:FindFirstChild("Ammo")
+                if zX9_Ammo and zX9_Ammo.Value > 0 then return zX9_Tool end
+                zX9_Found = zX9_Found or zX9_Tool
             end
         end
     end
-    return found
+    return zX9_Found
 end
 
-function clearLine(origin, part)
-    rayParams.FilterDescendantsInstances = { LocalPlayer.Character, part.Parent }
-    return Workspace:Raycast(origin, part.Position - origin, rayParams) == nil
+function zX9_HasClearShot(zX9_Origin, zX9_Part)
+    if not zX9_Part or not zX9_Part:IsA("BasePart") then return false end
+    if not zX9_RayParams then return true end
+    zX9_RayParams.FilterDescendantsInstances = { LocalPlayer.Character, zX9_Part.Parent }
+    return Workspace:Raycast(zX9_Origin, zX9_Part.Position - zX9_Origin, zX9_RayParams) == nil
 end
 
-function buildPacked(part, count)
-    local pos = part.Position
-    local packed = table.create(count)
-    for i = 1, count do
-        packed[i] = {
-            AimPosition = pos,
-            RawAimPosition = pos,
-            Result1 = pos,
-            Result2 = part,
-            Result3 = part.Name,
-            AimLockPart = part,
+function zX9_BuildPayload(zX9_Part, zX9_Count)
+    if not zX9_Part or not zX9_Part:IsA("BasePart") then return nil end
+    zX9_Count = math.floor(zX9_Count or 1)
+    if zX9_Count < 1 then zX9_Count = 1 end
+    
+    zX9_Pos = zX9_Part.Position
+    zX9_Packed = table.create(zX9_Count)
+    for i = 1, zX9_Count do
+        zX9_Packed[i] = {
+            AimPosition     = zX9_Pos,
+            RawAimPosition  = zX9_Pos,
+            Result1         = zX9_Pos,
+            Result2         = zX9_Part,
+            Result3         = zX9_Part.Name,
+            AimLockPart     = zX9_Part,
         }
     end
-    packed._ohKa = true
-    return packed
+    zX9_Packed._ohKa = true
+    return zX9_Packed
 end
 
-function path_in(root, ...)
-    local cur = root
-    for _, name in ipairs({ ... }) do
-        cur = cur and cur:FindFirstChild(name)
+function zX9_PathIn(zX9_Root, ...)
+    zX9_Cur = zX9_Root
+    for _, zX9_Name in ipairs({ ... }) do
+        zX9_Cur = zX9_Cur and zX9_Cur:FindFirstChild(zX9_Name)
     end
-    return cur
+    return zX9_Cur
 end
 
-function fire(gun, part)
-    local remote = getRemote()
-    if not remote then return end
+function zX9_ExecuteFire(zX9_Gun, zX9_Part)
+    if not zX9_Gun or not zX9_Part or not zX9_Part:IsA("BasePart") then return end
+    zX9_Remote = zX9_GetCachedRemote()
+    if not zX9_Remote then return end
 
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
+    zX9_Char = LocalPlayer.Character
+    zX9_Hum = zX9_Char and zX9_Char:FindFirstChildOfClass("Humanoid")
+    if not zX9_Hum then return end
 
-    if gun.Parent ~= char then
-        hum:EquipTool(gun)
+    if zX9_Gun.Parent ~= zX9_Char then
+        pcall(function() zX9_Hum:EquipTool(zX9_Gun) end)
         task.wait(0.05)
     end
 
-    local handle = gun:FindFirstChild("Handle")
-    local range = gun:FindFirstChild("Range")
-    local damage = gun:FindFirstChild("Damage")
-    local ammo = gun:FindFirstChild("Ammo")
-    if not (handle and range and damage) then return end
+    zX9_Handle = zX9_Gun:FindFirstChild("Handle")
+    zX9_Range = zX9_Gun:FindFirstChild("Range")
+    zX9_Damage = zX9_Gun:FindFirstChild("Damage")
+    zX9_Ammo = zX9_Gun:FindFirstChild("Ammo")
+    if not (zX9_Handle and zX9_Range and zX9_Damage) then return end
 
-    local origin = handle.Position
-    local muzzle = path_in(gun, "Default", "Mesh", "Muzzle")
-    if muzzle then origin = muzzle.WorldPosition end
+    zX9_Origin = zX9_Handle.Position
+    zX9_Muzzle = zX9_PathIn(zX9_Gun, "Default", "Mesh", "Muzzle")
+    if zX9_Muzzle then zX9_Origin = zX9_Muzzle.WorldPosition end
 
-    if (origin - part.Position).Magnitude > range.Value then return end
-    if not clearLine(origin, part) then return end
+    if (zX9_Origin - zX9_Part.Position).Magnitude > zX9_Range.Value then return end
+    if not zX9_HasClearShot(zX9_Origin, zX9_Part) then return end
 
-    local packed = buildPacked(part, C.Bullets)
-    for _ = 1, C.Burst do
-        if ammo and ammo.Value <= 0 then break end
+    zX9_Packed = zX9_BuildPayload(zX9_Part, zX9_InstantKillState.Bullets)
+    if not zX9_Packed then return end
+    
+    for _ = 1, zX9_InstantKillState.Burst do
+        if zX9_Ammo and zX9_Ammo.Value <= 0 then break end
         for _ = 1, 2 do
             pcall(function()
-                remote:FireServer("ShootGun", handle, origin, packed, nil, nil, nil, range.Value, damage.Value)
+                zX9_Remote:FireServer("ShootGun", zX9_Handle, zX9_Origin, zX9_Packed, nil, nil, nil, zX9_Range.Value, zX9_Damage.Value)
             end)
         end
     end
 end
 
-CombatLoop = task.spawn(function()
-    while C.Running do
+zX9_CombatLoop = task.spawn(function()
+    while zX9_InstantKillState.Running do
         task.wait(0.01)
-        if C.Auto and not C.Busy then
-            local target = _G.HitmanCurrentTarget
-            local char = target and target.Character
-            if char and not (C.SkipKO and isKnocked(char)) then
-                local part = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
-                local gun = part and getGun(C.Gun)
-                if gun then
-                    C.Busy = true
-                    pcall(fire, gun, part)
-                    if C.BurstInterval > 0 then
-                        task.wait(C.BurstInterval)
+        if zX9_InstantKillState.Auto and not zX9_InstantKillState.Busy then
+            pcall(function()
+                zX9_Target = _G.HitmanCurrentTarget
+                zX9_TargetChar = zX9_Target and zX9_Target.Character
+                if zX9_TargetChar and not (zX9_InstantKillState.SkipKO and zX9_IsTargetKnocked(zX9_TargetChar)) then
+                    zX9_AimPart = zX9_TargetChar:FindFirstChild("Head")
+                    if not (zX9_AimPart and zX9_AimPart:IsA("BasePart")) then
+                        zX9_AimPart = zX9_TargetChar:FindFirstChild("HumanoidRootPart")
                     end
-                    C.Busy = false
+                    if zX9_AimPart and zX9_AimPart:IsA("BasePart") then
+                        zX9_Gun = zX9_FindWeapon(zX9_InstantKillState.Gun)
+                        if zX9_Gun then
+                            zX9_InstantKillState.Busy = true
+                            zX9_ExecuteFire(zX9_Gun, zX9_AimPart)
+                            if zX9_InstantKillState.BurstInterval > 0 then
+                                task.wait(zX9_InstantKillState.BurstInterval)
+                            end
+                            zX9_InstantKillState.Busy = false
+                        end
+                    end
                 end
-            end
+            end)
         end
     end
 end)
 
-function CombatStop()
-    C.Running = false
-    C.Auto = false
-    C.Busy = false
-    if CombatLoop then pcall(task.cancel, CombatLoop) CombatLoop = nil end
-    if _G.Combat == C then _G.Combat = nil end
+function zX9_CombatStop()
+    zX9_InstantKillState.Running = false
+    zX9_InstantKillState.Auto = false
+    zX9_InstantKillState.Busy = false
+    if zX9_CombatLoop then pcall(task.cancel, zX9_CombatLoop) zX9_CombatLoop = nil end
+    if _G.Combat == zX9_InstantKillState then _G.Combat = nil end
 end
 
-C.Stop = CombatStop
+zX9_InstantKillState.Stop = zX9_CombatStop
 
-CombatGroup = Ragebot:AddLeftGroupbox("Instant Kill :3")
+pcall(function()
+    zX9_CombatGroup = Ragebot:AddLeftGroupbox("Instant Kill :3")
 
-CombatGroup:AddToggle("AutoFireEnabled", {
-    Text = "Instant Kill",
-    Default = false,
-    Tooltip = "Fires at the current aim target",
-    Searchable = true,
-})
+    zX9_CombatGroup:AddToggle("AutoFireEnabled", {
+        Text = "Instant Kill",
+        Default = false,
+        Tooltip = "Fires at the current aim target",
+        Searchable = true,
+    })
 
-CombatGroup:AddToggle("SkipKOToggle", {
-    Text = "K.O Check",
-    Default = true,
-    Tooltip = "Do not shoot targets that are K.O or dead",
-})
+    zX9_CombatGroup:AddToggle("SkipKOToggle", {
+        Text = "K.O Check",
+        Default = true,
+        Tooltip = "Do not shoot targets that are K.O or dead",
+    })
 
-CombatGroup:AddDropdown("KillAllGun", {
-    Text = "Weapon",
-    Values = { "Equipped", "[TacticalShotgun]", "[Double-Barrel SG]", "[Revolver]", "[Knife]" },
-    Default = "Equipped",
-})
+    zX9_CombatGroup:AddDropdown("KillAllGun", {
+        Text = "Weapon",
+        Values = { "Equipped", "[TacticalShotgun]", "[Double-Barrel SG]", "[Revolver]", "[Knife]" },
+        Default = "Equipped",
+    })
 
-CombatGroup:AddSlider("KillAllBullets", {
-    Text = "Bullets Per Target",
-    Default = 20,
-    Min = 1, Max = 100, Rounding = 0,
-})
+    zX9_CombatGroup:AddSlider("KillAllBullets", {
+        Text = "Bullets Per Target",
+        Default = 20,
+        Min = 1, Max = 100, Rounding = 0,
+    })
 
-CombatGroup:AddSlider("CombatBurst", {
-    Text = "Burst Count",
-    Default = 2,
-    Min = 1, Max = 10, Rounding = 0,
-    Tooltip = "Bursts per attack cycle",
-})
+    zX9_CombatGroup:AddSlider("CombatBurst", {
+        Text = "Burst Count",
+        Default = 2,
+        Min = 1, Max = 10, Rounding = 0,
+        Tooltip = "Bursts per attack cycle",
+    })
 
-CombatGroup:AddSlider("CombatBurstInterval", {
-    Text = "Burst Interval (s)",
-    Default = 0.5,
-    Min = 0.01, Max = 2, Rounding = 2,
-    Tooltip = "Seconds between bursts (0.5 = two bursts per second)",
-})
+    zX9_CombatGroup:AddSlider("CombatBurstInterval", {
+        Text = "Burst Interval (s)",
+        Default = 0.5,
+        Min = 0.01, Max = 2, Rounding = 2,
+        Tooltip = "Seconds between bursts (0.5 = two bursts per second)",
+    })
 
-Toggles.AutoFireEnabled:OnChanged(function(v) C.Auto = v end)
-Toggles.SkipKOToggle:OnChanged(function(v) C.SkipKO = v end)
-Options.KillAllGun:OnChanged(function(v) C.Gun = v end)
-Options.KillAllBullets:OnChanged(function(v) C.Bullets = math.floor(v) end)
-Options.CombatBurst:OnChanged(function(v) C.Burst = math.floor(v) end)
-Options.CombatBurstInterval:OnChanged(function(v) C.BurstInterval = v end)
+    Toggles.AutoFireEnabled:OnChanged(function(v) zX9_InstantKillState.Auto = v end)
+    Toggles.SkipKOToggle:OnChanged(function(v) zX9_InstantKillState.SkipKO = v end)
+    Options.KillAllGun:OnChanged(function(v) zX9_InstantKillState.Gun = v end)
+    Options.KillAllBullets:OnChanged(function(v) zX9_InstantKillState.Bullets = math.floor(v) end)
+    Options.CombatBurst:OnChanged(function(v) zX9_InstantKillState.Burst = math.floor(v) end)
+    Options.CombatBurstInterval:OnChanged(function(v) zX9_InstantKillState.BurstInterval = v end)
 
-if Library and Library.OnUnload then
-    Library:OnUnload(CombatStop)
-end
+    if Library and Library.OnUnload then
+        Library:OnUnload(zX9_CombatStop)
+    end
+end)
 
 -- deflect
 
