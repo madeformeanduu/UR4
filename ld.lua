@@ -9432,41 +9432,24 @@ _G.Halo.c2 = Color3.fromRGB(255, 255, 150)
 _G.Halo.c3 = Color3.fromRGB(218, 165, 32)
 _G.Halo.c4 = Color3.fromRGB(255, 255, 255)
 
-_G.Halo.radius = 1.2
-_G.Halo.width = 0.35
-_G.Halo.height = 1.6
-_G.Halo.tilt = 15
+_G.Halo.radius = 0.9
+_G.Halo.width = 0.12
+_G.Halo.height = 1.15
+_G.Halo.tilt = 10
 _G.Halo.speed = 0.4
 _G.Halo.glow = 0.6
-_G.Halo.rayCount = 16
-_G.Halo.rayLength = 0.8
-_G.Halo.outlineColor = Color3.fromRGB(0, 0, 0)
+
+if getgenv then getgenv().Halo = _G.Halo end
 
 HL_conn = nil
 HL_entries = {}
-HL_cols = {}
-HL_inA, HL_outA, HL_okA = {}, {}, {}
-HL_inB, HL_outB, HL_okB = {}, {}, {}
-HL_inG, HL_outG, HL_okG = {}, {}, {}
 
-HL_Players = Players
-HL_lp = LocalPlayer
+HL_Players = game:GetService("Players")
+HL_lp = HL_Players.LocalPlayer
 
-local R_SEGMENTS = 36
-
-function HL_color(progress, time)
-    local s = (progress + time * _G.Halo.speed) % 1
-    if s < 0.25 then return _G.Halo.c1:Lerp(_G.Halo.c2, s / 0.25)
-    elseif s < 0.5 then return _G.Halo.c2:Lerp(_G.Halo.c3, (s - 0.25) / 0.25)
-    elseif s < 0.75 then return _G.Halo.c3:Lerp(_G.Halo.c4, (s - 0.5) / 0.25)
-    else return _G.Halo.c4:Lerp(_G.Halo.c1, (s - 0.75) / 0.25) end
-end
-
-function HL_unit(v)
-    local m = v.Magnitude
-    if m < 0.001 then return Vector2.new(0, 0) end
-    return v / m
-end
+HL_N = 44
+HL_TAU = math.pi * 2
+HL_LAYERS = 5
 
 function HL_newQuad(z)
     local q = Drawing.new("Quad")
@@ -9476,57 +9459,33 @@ function HL_newQuad(z)
     return q
 end
 
-function HL_newLine(z)
-    local l = Drawing.new("Line")
-    l.Thickness = 3
-    l.ZIndex = z
-    l.Visible = false
-    return l
-end
-
 function HL_getEntry(key)
     local e = HL_entries[key]
     if e then return e end
-
-    e = { 
-        quads = {}, 
-        outlineQuads = {},
-        glow = {}, 
-        rays = {}, 
-        shown = false, 
-        phase = math.random() * math.pi * 2 
-    }
-    
-    for i = 1, R_SEGMENTS do 
-        e.quads[i] = HL_newQuad(3) 
-        e.outlineQuads[i] = HL_newQuad(2)
-        e.glow[i] = HL_newQuad(1)
+    e = { layers = {}, shown = false, phase = math.random() * HL_TAU,
+          px = {}, ok = {}, hw = {}, nx = {}, ny = {} }
+    for l = 1, HL_LAYERS do
+        e.layers[l] = {}
+        for i = 1, HL_N do e.layers[l][i] = HL_newQuad(l) end
     end
-    
-    for i = 1, 36 do
-        e.rays[i] = HL_newLine(2)
-    end
-    
     HL_entries[key] = e
     return e
 end
 
 function HL_hide(e)
     if not e.shown then return end
-    for _, q in ipairs(e.quads) do q.Visible = false end
-    for _, q in ipairs(e.outlineQuads) do q.Visible = false end
-    for _, q in ipairs(e.glow) do q.Visible = false end
-    for _, r in ipairs(e.rays) do r.Visible = false end
+    for l = 1, HL_LAYERS do
+        for _, q in ipairs(e.layers[l]) do q.Visible = false end
+    end
     e.shown = false
 end
 
 function HL_destroyEntry(key)
     local e = HL_entries[key]
     if not e then return end
-    for _, q in ipairs(e.quads) do pcall(function() q:Remove() end) end
-    for _, q in ipairs(e.outlineQuads) do pcall(function() q:Remove() end) end
-    for _, q in ipairs(e.glow) do pcall(function() q:Remove() end) end
-    for _, r in ipairs(e.rays) do pcall(function() r:Remove() end) end
+    for l = 1, HL_LAYERS do
+        for _, q in ipairs(e.layers[l]) do pcall(function() q:Remove() end) end
+    end
     HL_entries[key] = nil
 end
 
@@ -9534,33 +9493,29 @@ function HL_destroyAll()
     for key in pairs(HL_entries) do HL_destroyEntry(key) end
 end
 
-function HL_project(cam, cf, r0, r1, inArr, outArr, okArr)
-    for i = 1, R_SEGMENTS do
-        local a = (i - 1) / R_SEGMENTS * math.pi * 2
-        local c, s = math.cos(a), math.sin(a)
-        local pi_ = cam:WorldToViewportPoint(cf:PointToWorldSpace(Vector3.new(c * r0, 0, s * r0)))
-        local po = cam:WorldToViewportPoint(cf:PointToWorldSpace(Vector3.new(c * r1, 0, s * r1)))
-        inArr[i] = Vector2.new(pi_.X, pi_.Y)
-        outArr[i] = Vector2.new(po.X, po.Y)
-        okArr[i] = pi_.Z > 0.1 and po.Z > 0.1
+function HL_strip(e, layer, mul, off, colorFn, opacity)
+    local quads = e.layers[layer]
+    local px, ok, hw, nx, ny = e.px, e.ok, e.hw, e.nx, e.ny
+    local L, R = {}, {}
+    for i = 1, HL_N do
+        if ok[i] then
+            local sgn = (ny[i] < 0) and 1 or -1
+            local c = px[i] + Vector2.new(nx[i], ny[i]) * (sgn * off * hw[i])
+            local w = mul * hw[i]
+            L[i] = c + Vector2.new(nx[i], ny[i]) * w
+            R[i] = c - Vector2.new(nx[i], ny[i]) * w
+        end
     end
-end
-
-function HL_fill(quads, inArr, outArr, okArr, alpha, solidColor)
-    for i = 1, R_SEGMENTS do
-        local j = (i % R_SEGMENTS) + 1
+    for i = 1, HL_N do
+        local j = (i % HL_N) + 1
         local q = quads[i]
-        if okArr[i] and okArr[j] then
-            local A, B, C, D = inArr[i], outArr[i], outArr[j], inArr[j]
-            local dIn = HL_unit(D - A) * 0.5
-            local dOut = HL_unit(C - B) * 0.5
-            
-            q.PointA = A - dIn
-            q.PointB = B - dOut
-            q.PointC = C + dOut
-            q.PointD = D + dIn
-            q.Color = solidColor or HL_cols[i]
-            q.Transparency = alpha
+        if ok[i] and ok[j] then
+            q.PointA = L[i]
+            q.PointB = R[i]
+            q.PointC = R[j]
+            q.PointD = L[j]
+            q.Color = colorFn(i)
+            q.Transparency = opacity
             q.Visible = true
         else
             q.Visible = false
@@ -9568,72 +9523,62 @@ function HL_fill(quads, inArr, outArr, okArr, alpha, solidColor)
     end
 end
 
-function HL_drawRays(e, cam, cf, now)
-    for i = 1, 36 do
-        local line = e.rays[i]
-        if i <= _G.Halo.rayCount then
-            local ang = (i / _G.Halo.rayCount) * math.pi * 2
-            local c, s = math.cos(ang), math.sin(ang)
-            
-            local pulse = (math.sin(now * 4 + i) + 1) * 0.5
-            local rayLen = _G.Halo.rayLength * (0.5 + 0.5 * pulse)
-            
-            local p1 = cf:PointToWorldSpace(Vector3.new(c * (_G.Halo.radius + 0.2), 0, s * (_G.Halo.radius + 0.2)))
-            local p2 = cf:PointToWorldSpace(Vector3.new(c * (_G.Halo.radius + rayLen), 0, s * (_G.Halo.radius + rayLen)))
-            
-            local s1 = cam:WorldToViewportPoint(p1)
-            local s2 = cam:WorldToViewportPoint(p2)
-            
-            if s1.Z > 0.1 and s2.Z > 0.1 then
-                line.From = Vector2.new(s1.X, s1.Y)
-                line.To = Vector2.new(s2.X, s2.Y)
-                line.Color = HL_cols[i]
-                line.Thickness = 3
-                line.Transparency = 0.3 + 0.7 * pulse
-                line.Visible = true
-            else
-                line.Visible = false
-            end
-        else
-            line.Visible = false
-        end
-    end
-end
-
 function HL_drawHalo(e, head, cam, now)
+    local H = _G.Halo
     local look = head.CFrame.LookVector
     local flat = Vector3.new(look.X, 0, look.Z)
     if flat.Magnitude < 0.05 then flat = Vector3.new(0, 0, -1) else flat = flat.Unit end
 
-    local bob = math.sin(now * 1.8 + e.phase) * 0.1
-    local wob = math.sin(now * 1.3 + e.phase * 2) * 0.05
-    local center = head.Position + Vector3.new(0, _G.Halo.height + bob, 0)
-    local cf = CFrame.new(center) * CFrame.lookAt(Vector3.new(0, 0, 0), flat) * CFrame.Angles(math.rad(_G.Halo.tilt) + wob, 0, wob * 0.7)
+    local bob = math.sin(now * 1.6 + e.phase) * 0.05
+    local wob = math.sin(now * 1.1 + e.phase * 2) * 0.04
+    local center = head.Position + Vector3.new(0, H.height + bob, 0)
+    local cf = CFrame.new(center) * CFrame.lookAt(Vector3.new(0, 0, 0), flat) * CFrame.Angles(math.rad(H.tilt) + wob, 0, wob * 0.8)
 
-    for i = 1, R_SEGMENTS do
-        HL_cols[i] = HL_color((i - 0.5) / R_SEGMENTS, now)
+    local focal = cam.ViewportSize.Y / (2 * math.tan(math.rad(cam.FieldOfView) / 2))
+    local r = H.radius
+    local px, ok, hw, nx, ny = e.px, e.ok, e.hw, e.nx, e.ny
+
+    for i = 1, HL_N do
+        local a = (i - 1) / HL_N * HL_TAU
+        local v = cam:WorldToViewportPoint(cf:PointToWorldSpace(Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)))
+        px[i] = Vector2.new(v.X, v.Y)
+        ok[i] = v.Z > 0.1
+        hw[i] = math.max(1.0, (H.width * 0.5) * focal / math.max(v.Z, 0.1))
     end
 
-    if _G.Halo.glow > 0.01 then
-        HL_project(cam, cf, _G.Halo.radius - _G.Halo.width/2 - 0.3, _G.Halo.radius + _G.Halo.width/2 + 0.3, HL_inG, HL_outG, HL_okG)
-        HL_fill(e.glow, HL_inG, HL_outG, HL_okG, 0.2 * _G.Halo.glow)
+    for i = 1, HL_N do
+        local p = px[((i - 2) % HL_N) + 1]
+        local n = px[(i % HL_N) + 1]
+        local d = n - p
+        local m = d.Magnitude
+        if m < 0.001 then nx[i], ny[i] = 0, 1 else nx[i], ny[i] = -d.Y / m, d.X / m end
+    end
+
+    local pulse = 0.5 + 0.5 * math.sin(now * 2 + e.phase)
+    local shimmerSpeed = H.speed * 6
+    local function shade(i)
+        local a = (i - 0.5) / HL_N * HL_TAU
+        local sh = 0.5 + 0.5 * math.sin(a * 2 - now * shimmerSpeed)
+        return H.c1:Lerp(H.c2, 0.15 + 0.5 * sh):Lerp(H.c4, 0.08 * pulse)
+    end
+    local glow = H.glow
+
+    if glow > 0.01 then
+        HL_strip(e, 1, 3.4, 0, function() return H.c3 end, 0.10 * glow)
+        HL_strip(e, 2, 2.0, 0, function() return H.c3:Lerp(H.c1, 0.4) end, 0.22 * glow)
     else
-        for _, q in ipairs(e.glow) do q.Visible = false end
+        for _, q in ipairs(e.layers[1]) do q.Visible = false end
+        for _, q in ipairs(e.layers[2]) do q.Visible = false end
     end
-    
-    HL_project(cam, cf, _G.Halo.radius - _G.Halo.width/2 - 0.08, _G.Halo.radius + _G.Halo.width/2 + 0.08, HL_inB, HL_outB, HL_okB)
-    HL_fill(e.outlineQuads, HL_inB, HL_outB, HL_okB, 1, _G.Halo.outlineColor)
-    
-    HL_project(cam, cf, _G.Halo.radius - _G.Halo.width/2, _G.Halo.radius + _G.Halo.width/2, HL_inA, HL_outA, HL_okA)
-    HL_fill(e.quads, HL_inA, HL_outA, HL_okA, 1)
-    
-    HL_drawRays(e, cam, cf, now)
+    HL_strip(e, 3, 1.0, 0, function() return H.c3 end, 1)
+    HL_strip(e, 4, 0.74, 0.14, shade, 1)
+    HL_strip(e, 5, 0.26, 0.38, function(i) return shade(i):Lerp(H.c4, 0.7) end, 0.9)
 
     e.shown = true
 end
 
 function HL_render()
-    local cam = Workspace.CurrentCamera
+    local cam = workspace.CurrentCamera
     if not cam then return end
     local now = tick()
     local camPos = cam.CFrame.Position
@@ -9641,10 +9586,10 @@ function HL_render()
     for _, player in ipairs(HL_Players:GetPlayers()) do
         local isSelf = player == HL_lp
         local want
-        if isSelf then 
-            want = _G.Halo.selfOn 
-        else 
-            want = _G.Halo.othersOn 
+        if isSelf then
+            want = _G.Halo.selfOn
+        else
+            want = _G.Halo.othersOn
         end
 
         local drawn = false
@@ -9654,7 +9599,7 @@ function HL_render()
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             if head and hum and hum.Health > 0 then
                 local d = (head.Position - camPos).Magnitude
-                if d <= 300 and not (isSelf and d < 1.3) then
+                if not (isSelf and d < 1.3) then
                     local sp = cam:WorldToViewportPoint(head.Position + Vector3.new(0, _G.Halo.height, 0))
                     if sp.Z > 0 then
                         HL_drawHalo(HL_getEntry(player), head, cam, now)
@@ -9691,34 +9636,30 @@ _G.Halo.Unload = function()
     _G.Halo = nil
 end
 
-halotoggle = _78:AddToggle("HaloEnabled", {
+Halotoggle = _78:AddToggle("HaloEnabled", {
     Text = "Halo",
     Default = false,
     Searchable = true,
 })
 
-halotoggle:AddColorPicker("HaloColor1", {
+Halotoggle:AddColorPicker("HaloColor1", {
     Default = Color3.fromRGB(255, 215, 0),
-    Title = "Color 1",
+    Title = "Ring",
 })
-halotoggle:AddColorPicker("HaloColor2", {
+Halotoggle:AddColorPicker("HaloColor2", {
     Default = Color3.fromRGB(255, 255, 150),
-    Title = "Color 2",
+    Title = "Shimmer",
 })
-halotoggle:AddColorPicker("HaloColor3", {
+Halotoggle:AddColorPicker("HaloColor3", {
     Default = Color3.fromRGB(218, 165, 32),
-    Title = "Color 3",
+    Title = "Glow",
 })
-halotoggle:AddColorPicker("HaloColor4", {
+Halotoggle:AddColorPicker("HaloColor4", {
     Default = Color3.fromRGB(255, 255, 255),
-    Title = "Color 4",
-})
-halotoggle:AddColorPicker("HaloOutlineColor", {
-    Default = Color3.fromRGB(0, 0, 0),
-    Title = "Outline Color",
+    Title = "Highlight",
 })
 
-HaloSettings = halotoggle:AddSettings({
+HaloSettings = Halotoggle:AddSettings({
     Title = 'Halo Settings',
     Width = 200,
 })
@@ -9730,30 +9671,30 @@ HaloSettings:AddToggle("HaloSelfEnabled", {
 
 HaloSettings:AddSlider("HaloRadius", {
     Text = "Radius",
-    Default = 1.2,
-    Min = 0.4, Max = 3, Rounding = 2,
+    Default = 0.9,
+    Min = 0.4, Max = 2.5, Rounding = 2,
 })
 
 HaloSettings:AddSlider("HaloWidth", {
     Text = "Thickness",
-    Default = 0.35,
-    Min = 0.05, Max = 0.8, Rounding = 2,
+    Default = 0.12,
+    Min = 0.04, Max = 0.4, Rounding = 2,
 })
 
 HaloSettings:AddSlider("HaloHeight", {
     Text = "Height",
-    Default = 1.6,
-    Min = 0.3, Max = 3.5, Rounding = 2,
+    Default = 1.15,
+    Min = 0.5, Max = 3, Rounding = 2,
 })
 
 HaloSettings:AddSlider("HaloTilt", {
     Text = "Tilt",
-    Default = 15,
+    Default = 10,
     Min = -40, Max = 40, Rounding = 0, Suffix = "°",
 })
 
 HaloSettings:AddSlider("HaloSpeed", {
-    Text = "Color Speed",
+    Text = "Shimmer Speed",
     Default = 0.4,
     Min = 0.01, Max = 2, Rounding = 2,
 })
@@ -9764,18 +9705,6 @@ HaloSettings:AddSlider("HaloGlow", {
     Min = 0, Max = 1, Rounding = 2,
 })
 
-HaloSettings:AddSlider("HaloRayCount", {
-    Text = "Ray Count",
-    Default = 16,
-    Min = 0, Max = 36, Rounding = 0,
-})
-
-HaloSettings:AddSlider("HaloRayLength", {
-    Text = "Ray Length",
-    Default = 0.8,
-    Min = 0.1, Max = 2, Rounding = 2,
-})
-
 Toggles.HaloEnabled:OnChanged(function(value) _G.Halo.othersOn = value HL_refresh() end)
 Toggles.HaloSelfEnabled:OnChanged(function(value) _G.Halo.selfOn = value HL_refresh() end)
 
@@ -9783,7 +9712,6 @@ Options.HaloColor1:OnChanged(function(value) _G.Halo.c1 = value end)
 Options.HaloColor2:OnChanged(function(value) _G.Halo.c2 = value end)
 Options.HaloColor3:OnChanged(function(value) _G.Halo.c3 = value end)
 Options.HaloColor4:OnChanged(function(value) _G.Halo.c4 = value end)
-Options.HaloOutlineColor:OnChanged(function(value) _G.Halo.outlineColor = value end)
 
 Options.HaloRadius:OnChanged(function(value) _G.Halo.radius = value end)
 Options.HaloWidth:OnChanged(function(value) _G.Halo.width = value end)
@@ -9791,12 +9719,514 @@ Options.HaloHeight:OnChanged(function(value) _G.Halo.height = value end)
 Options.HaloTilt:OnChanged(function(value) _G.Halo.tilt = value end)
 Options.HaloSpeed:OnChanged(function(value) _G.Halo.speed = value end)
 Options.HaloGlow:OnChanged(function(value) _G.Halo.glow = value end)
-Options.HaloRayCount:OnChanged(function(value) _G.Halo.rayCount = math.floor(value) end)
-Options.HaloRayLength:OnChanged(function(value) _G.Halo.rayLength = value end)
 
 _48:OnUnload(function()
     if _G.Halo and _G.Halo.Unload then
         _G.Halo.Unload()
+    end
+end)
+
+-- magic circle core :3
+if _G.MagicCircle and _G.MagicCircle.Unload then
+    pcall(_G.MagicCircle.Unload)
+end
+
+_G.MagicCircle = _G.MagicCircle or {}
+_G.MagicCircle.othersOn = false
+_G.MagicCircle.selfOn = false
+_G.MagicCircle.c1 = Color3.fromRGB(255, 255, 255)
+_G.MagicCircle.c2 = Color3.fromRGB(190, 215, 255)
+_G.MagicCircle.radius = 4
+_G.MagicCircle.width = 0
+_G.MagicCircle.speed = 0.35
+_G.MagicCircle.glow = 0.7
+_G.MagicCircle.lift = 0.05
+_G.MagicCircle.points = 8
+_G.MagicCircle.skip = 3
+_G.MagicCircle.orbs = 8
+_G.MagicCircle.specks = 4
+_G.MagicCircle.maxDistance = 500
+
+if getgenv then getgenv().MagicCircle = _G.MagicCircle end
+
+MC_conn = nil
+MC_entries = {}
+MC_players = {}
+MC_Players = game:GetService("Players")
+MC_lp = MC_Players.LocalPlayer
+
+MC_N = 36
+MC_TAU = math.pi * 2
+MC_MAX_PTS = 12
+MC_MAX_ORBS = 16
+MC_MAX_SPECKS = 8
+
+MC_cos = {}
+MC_sin = {}
+for i = 0, MC_N - 1 do
+    local a = i / MC_N * MC_TAU
+    MC_cos[i + 1] = math.cos(a)
+    MC_sin[i + 1] = math.sin(a)
+end
+
+MC_params = RaycastParams.new()
+MC_params.FilterType = Enum.RaycastFilterType.Exclude
+
+function MC_refreshPlayers()
+    table.clear(MC_players)
+    for _, p in ipairs(MC_Players:GetPlayers()) do
+        MC_players[#MC_players + 1] = p
+    end
+end
+
+MC_refreshPlayers()
+
+MC_Players.PlayerAdded:Connect(function(p)
+    MC_players[#MC_players + 1] = p
+end)
+
+MC_Players.PlayerRemoving:Connect(function(p)
+    for i = #MC_players, 1, -1 do
+        if MC_players[i] == p then table.remove(MC_players, i) break end
+    end
+    if MC_entries[p] then MC_destroyEntry(p) end
+end)
+
+function MC_newQuad(z)
+    local q = Drawing.new("Quad")
+    q.Filled = true
+    q.ZIndex = z
+    q.Visible = false
+    return q
+end
+
+function MC_newLine(z)
+    local l = Drawing.new("Line")
+    l.ZIndex = z
+    l.Thickness = 1
+    l.Visible = false
+    return l
+end
+
+function MC_newDot(z)
+    local c = Drawing.new("Circle")
+    c.Filled = true
+    c.NumSides = 24
+    c.ZIndex = z
+    c.Visible = false
+    return c
+end
+
+function MC_getEntry(key)
+    local e = MC_entries[key]
+    if e then return e end
+    e = { oG = {}, oM = {}, iG = {}, iM = {}, sG = {}, sM = {}, dG = {}, dM = {}, kG = {}, kM = {},
+          shown = false, phase = math.random() * MC_TAU,
+          y = nil, groundY = nil, groundYAt = 0, lastHRPPos = Vector3.zero,
+          px = {}, ok = {}, hw = {}, nx = {}, ny = {},
+          sv = {} }
+    for i = 1, MC_N do
+        e.oG[i] = MC_newQuad(1)
+        e.iG[i] = MC_newQuad(2)
+        e.oM[i] = MC_newQuad(3)
+        e.iM[i] = MC_newQuad(4)
+    end
+    for i = 1, MC_MAX_PTS do
+        e.sG[i] = MC_newLine(2)
+        e.sM[i] = MC_newLine(5)
+    end
+    for i = 1, MC_MAX_ORBS do
+        e.dG[i] = MC_newDot(2)
+        e.dM[i] = MC_newDot(5)
+    end
+    for i = 1, MC_MAX_SPECKS do
+        e.kG[i] = MC_newDot(2)
+        e.kM[i] = MC_newDot(5)
+    end
+    MC_entries[key] = e
+    return e
+end
+
+function MC_each(e, fn)
+    for i = 1, MC_N do
+        fn(e.oG[i]); fn(e.oM[i]); fn(e.iG[i]); fn(e.iM[i])
+    end
+    for i = 1, MC_MAX_PTS do fn(e.sG[i]); fn(e.sM[i]) end
+    for i = 1, MC_MAX_ORBS do fn(e.dG[i]); fn(e.dM[i]) end
+    for i = 1, MC_MAX_SPECKS do fn(e.kG[i]); fn(e.kM[i]) end
+end
+
+function MC_hide(e)
+    if not e.shown then return end
+    MC_each(e, function(d) d.Visible = false end)
+    e.shown = false
+end
+
+function MC_destroyEntry(key)
+    local e = MC_entries[key]
+    if not e then return end
+    MC_each(e, function(d) pcall(function() d:Remove() end) end)
+    MC_entries[key] = nil
+end
+
+function MC_destroyAll()
+    for key in pairs(MC_entries) do MC_destroyEntry(key) end
+end
+
+function MC_ring(e, cam, focal, origin, r, halfW, glowQ, mainQ, glowMul, cMain, cGlow, gOpacity)
+    local px, ok, hw, nx, ny = e.px, e.ok, e.hw, e.nx, e.ny
+    for i = 1, MC_N do
+        local v = cam:WorldToViewportPoint(origin + Vector3.new(MC_cos[i] * r, 0, MC_sin[i] * r))
+        px[i] = Vector2.new(v.X, v.Y)
+        local z = v.Z
+        ok[i] = z > 0.1
+        if z < 0.1 then z = 0.1 end
+        local w = halfW * focal / z
+        if w < 0.7 then w = 0.7 end
+        hw[i] = w
+    end
+    for i = 1, MC_N do
+        local j = (i % MC_N) + 1
+        local d = px[j] - px[i]
+        local m = d.Magnitude
+        if m < 0.001 then
+            nx[i], ny[i] = 0, 1
+        else
+            local inv = 1 / m
+            nx[i], ny[i] = -d.Y * inv, d.X * inv
+        end
+    end
+    for i = 1, MC_N do
+        local j = (i % MC_N) + 1
+        local q = mainQ[i]
+        if ok[i] and ok[j] then
+            local wi, wj = hw[i], hw[j]
+            local nxi, nyi, nxj, nyj = nx[i], ny[i], nx[j], ny[j]
+            local pxi, pyi, pxj, pyj = px[i].X, px[i].Y, px[j].X, px[j].Y
+            q.PointA = Vector2.new(pxi + nxi * wi, pyi + nyi * wi)
+            q.PointB = Vector2.new(pxi - nxi * wi, pyi - nyi * wi)
+            q.PointC = Vector2.new(pxj - nxj * wj, pyj - nyj * wj)
+            q.PointD = Vector2.new(pxj + nxj * wj, pyj + nyj * wj)
+            q.Color = cMain
+            q.Transparency = 1
+            q.Visible = true
+        else
+            q.Visible = false
+        end
+    end
+    if gOpacity > 0.005 then
+        for i = 1, MC_N do
+            local j = (i % MC_N) + 1
+            local q = glowQ[i]
+            if ok[i] and ok[j] then
+                local wi, wj = hw[i] * glowMul, hw[j] * glowMul
+                local nxi, nyi, nxj, nyj = nx[i], ny[i], nx[j], ny[j]
+                local pxi, pyi, pxj, pyj = px[i].X, px[i].Y, px[j].X, px[j].Y
+                q.PointA = Vector2.new(pxi + nxi * wi, pyi + nyi * wi)
+                q.PointB = Vector2.new(pxi - nxi * wi, pyi - nyi * wi)
+                q.PointC = Vector2.new(pxj - nxj * wj, pyj - nyj * wj)
+                q.PointD = Vector2.new(pxj + nxj * wj, pyj + nyj * wj)
+                q.Color = cGlow
+                q.Transparency = gOpacity
+                q.Visible = true
+            else
+                q.Visible = false
+            end
+        end
+    else
+        for i = 1, MC_N do glowQ[i].Visible = false end
+    end
+end
+
+function MC_dot(cam, focal, worldPos, worldR, gD, mD, cMain, cGlow, gOpacity)
+    local v = cam:WorldToViewportPoint(worldPos)
+    if v.Z <= 0.1 then
+        gD.Visible = false
+        mD.Visible = false
+        return
+    end
+    local rad = worldR * focal / v.Z
+    if rad < 1.2 then rad = 1.2 end
+    local sx, sy = v.X, v.Y
+    mD.Position = Vector2.new(sx, sy)
+    mD.Radius = rad
+    mD.Color = cMain
+    mD.Transparency = 1
+    mD.Visible = true
+    if gOpacity > 0.005 then
+        gD.Position = Vector2.new(sx, sy)
+        gD.Radius = rad * 2.4
+        gD.Color = cGlow
+        gD.Transparency = gOpacity
+        gD.Visible = true
+    else
+        gD.Visible = false
+    end
+end
+
+function MC_draw(e, origin, cam, now)
+    local M = _G.MagicCircle
+    local R = M.radius
+    local vpY = cam.ViewportSize.Y
+    local fov = cam.FieldOfView
+    local focal = vpY / (2 * math.tan(math.rad(fov) * 0.5))
+    local breathe = 0.85 + 0.15 * math.sin(now * 1.7 + e.phase)
+    local gOp = 0.20 * M.glow * breathe
+    local T = 0
+    local spin = now * M.speed
+
+    MC_ring(e, cam, focal, origin, R * 0.90, R * 0.040 * T, e.oG, e.oM, 2.6, M.c1, M.c2, gOp)
+    MC_ring(e, cam, focal, origin, R * 0.80, R * 0.012 * T, e.iG, e.iM, 4.0, M.c1, M.c2, gOp * 0.9)
+
+    local pts = math.clamp(math.floor(M.points), 3, MC_MAX_PTS)
+    local skip = math.clamp(math.floor(M.skip), 1, math.max(1, math.floor((pts - 1) / 2)))
+    local sv = e.sv
+    local sr = R * 0.80
+    for k = 1, pts do
+        local a = (k - 1) / pts * MC_TAU + spin
+        sv[k] = cam:WorldToViewportPoint(origin + Vector3.new(math.cos(a) * sr, 0, math.sin(a) * sr))
+    end
+    for k = 1, MC_MAX_PTS do
+        local gl, ml = e.sG[k], e.sM[k]
+        if k <= pts then
+            local A = sv[k]
+            local B = sv[((k - 1 + skip) % pts) + 1]
+            if A.Z > 0.1 and B.Z > 0.1 then
+                local z = (A.Z + B.Z) * 0.5
+                local th = R * 0.014 * T * focal / z
+                if th < 1 then th = 1 end
+                ml.From = Vector2.new(A.X, A.Y)
+                ml.To = Vector2.new(B.X, B.Y)
+                ml.Thickness = th
+                ml.Color = M.c1
+                ml.Transparency = 1
+                ml.Visible = true
+                if gOp > 0.005 then
+                    gl.From = ml.From
+                    gl.To = ml.To
+                    gl.Thickness = th * 3.2
+                    gl.Color = M.c2
+                    gl.Transparency = gOp
+                    gl.Visible = true
+                else
+                    gl.Visible = false
+                end
+            else
+                gl.Visible = false
+                ml.Visible = false
+            end
+        else
+            gl.Visible = false
+            ml.Visible = false
+        end
+    end
+
+    local orbs = math.clamp(math.floor(M.orbs), 0, MC_MAX_ORBS)
+    local orbR = R * 0.020 * T + R * 0.012
+    for k = 1, MC_MAX_ORBS do
+        if k <= orbs then
+            local a = (k - 1) / orbs * MC_TAU - spin * 0.35
+            local p = origin + Vector3.new(math.cos(a) * R, 0, math.sin(a) * R)
+            MC_dot(cam, focal, p, orbR, e.dG[k], e.dM[k], M.c1, M.c2, gOp * 1.6)
+        else
+            e.dG[k].Visible = false
+            e.dM[k].Visible = false
+        end
+    end
+
+    local specks = math.clamp(math.floor(M.specks), 0, MC_MAX_SPECKS)
+    if specks > 0 then
+        for k = 1, MC_MAX_SPECKS do
+            if k <= specks then
+                local a = k / specks * MC_TAU + now * 0.9 * (k % 2 == 0 and 1 or -1) + e.phase
+                local rr = R * (0.06 + 0.035 * k)
+                local p = origin + Vector3.new(math.cos(a) * rr, 0, math.sin(a) * rr)
+                MC_dot(cam, focal, p, R * 0.008, e.kG[k], e.kM[k], M.c1, M.c2, gOp * 1.2)
+            else
+                e.kG[k].Visible = false
+                e.kM[k].Visible = false
+            end
+        end
+    else
+        for k = 1, MC_MAX_SPECKS do
+            e.kG[k].Visible = false
+            e.kM[k].Visible = false
+        end
+    end
+
+    e.shown = true
+end
+
+function MC_groundY(char, hrp, hum)
+    MC_params.FilterDescendantsInstances = { char }
+    local hit = workspace:Raycast(hrp.Position, Vector3.new(0, -14, 0), MC_params)
+    if hit then return hit.Position.Y end
+    return hrp.Position.Y - hum.HipHeight - hrp.Size.Y * 0.5
+end
+
+function MC_isOnScreen(cam, pos)
+    local v = cam:WorldToViewportPoint(pos)
+    if v.Z <= 0.1 then return false end
+    local vp = cam.ViewportSize
+    if v.X < -50 or v.X > vp.X + 50 or v.Y < -50 or v.Y > vp.Y + 50 then
+        return false
+    end
+    return true
+end
+
+function MC_render()
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    local now = tick()
+    local camPos = cam.CFrame.Position
+    local maxDist = _G.MagicCircle.maxDistance
+    local maxDistSq = maxDist * maxDist
+
+    for i = 1, #MC_players do
+        local player = MC_players[i]
+        local isSelf = player == MC_lp
+        local want = isSelf and _G.MagicCircle.selfOn or (not isSelf and _G.MagicCircle.othersOn)
+
+        local drawn = false
+        if want then
+            local char = player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hrp and hum and hum.Health > 0 then
+                local dx = hrp.Position.X - camPos.X
+                local dy = hrp.Position.Y - camPos.Y
+                local dz = hrp.Position.Z - camPos.Z
+                if dx * dx + dy * dy + dz * dz <= maxDistSq then
+                    
+                    if MC_isOnScreen(cam, hrp.Position) then
+                        local e = MC_getEntry(player)
+
+                        local moveX = hrp.Position.X - e.lastHRPPos.X
+                        local moveY = hrp.Position.Y - e.lastHRPPos.Y
+                        local moveZ = hrp.Position.Z - e.lastHRPPos.Z
+                        local movedSq = moveX * moveX + moveY * moveY + moveZ * moveZ
+
+                        if now - e.groundYAt > 0.12 or movedSq > 16 then
+                            e.groundY = MC_groundY(char, hrp, hum)
+                            e.groundYAt = now
+                            e.lastHRPPos = hrp.Position
+                        end
+
+                        local gy = e.groundY or (hrp.Position.Y - 3)
+                        e.y = e.y and (e.y + (gy - e.y) * 0.4) or gy
+                        local origin = Vector3.new(hrp.Position.X, e.y + _G.MagicCircle.lift, hrp.Position.Z)
+                        MC_draw(e, origin, cam, now)
+                        drawn = true
+                    end
+                end
+            end
+        end
+
+        if not drawn then
+            local e = MC_entries[player]
+            if e then MC_hide(e) end
+        end
+    end
+end
+
+function MC_refresh()
+    if _G.MagicCircle.othersOn or _G.MagicCircle.selfOn then
+        if not MC_conn then MC_conn = RunService.RenderStepped:Connect(MC_render) end
+    else
+        if MC_conn then MC_conn:Disconnect() MC_conn = nil end
+        MC_destroyAll()
+    end
+end
+
+_G.MagicCircle.Unload = function()
+    if MC_conn then pcall(function() MC_conn:Disconnect() end) MC_conn = nil end
+    _G.MagicCircle.othersOn, _G.MagicCircle.selfOn = false, false
+    MC_destroyAll()
+    _G.MagicCircle = nil
+end
+
+Mctoggle = _78:AddToggle("MagicCircleEnabled", {
+    Text = "Magic Circle",
+    Default = false,
+    Searchable = true,
+})
+
+Mctoggle:AddColorPicker("MagicCircleColor1", {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = "Lines",
+})
+Mctoggle:AddColorPicker("MagicCircleColor2", {
+    Default = Color3.fromRGB(190, 215, 255),
+    Title = "Glow",
+})
+
+MagicCircleSettings = Mctoggle:AddSettings({
+    Title = 'Magic Circle Settings',
+    Width = 200,
+})
+
+MagicCircleSettings:AddToggle("MagicCircleSelfEnabled", {
+    Text = "Self Circle",
+    Default = false,
+})
+
+MagicCircleSettings:AddSlider("MagicCircleRadius", {
+    Text = "Radius",
+    Default = 4,
+    Min = 1.5, Max = 10, Rounding = 1,
+})
+
+MagicCircleSettings:AddSlider("MagicCircleSpeed", {
+    Text = "Spin Speed",
+    Default = 0.35,
+    Min = 0, Max = 2, Rounding = 2,
+})
+
+MagicCircleSettings:AddSlider("MagicCircleGlow", {
+    Text = "Glow",
+    Default = 0.7,
+    Min = 0, Max = 1, Rounding = 2,
+})
+
+MagicCircleSettings:AddSlider("MagicCircleLift", {
+    Text = "Ground Offset",
+    Default = 0.05,
+    Min = 0, Max = 1, Rounding = 2,
+})
+
+MagicCircleSettings:AddSlider("MagicCirclePoints", {
+    Text = "Star Points",
+    Default = 8,
+    Min = 3, Max = 12, Rounding = 0,
+})
+
+MagicCircleSettings:AddSlider("MagicCircleSkip", {
+    Text = "Star Skip",
+    Default = 3,
+    Min = 1, Max = 5, Rounding = 0,
+})
+
+MagicCircleSettings:AddSlider("MagicCircleMaxDistance", {
+    Text = "Max Distance",
+    Default = 500,
+    Min = 50, Max = 2000, Rounding = 0,
+})
+
+Toggles.MagicCircleEnabled:OnChanged(function(value) _G.MagicCircle.othersOn = value MC_refresh() end)
+Toggles.MagicCircleSelfEnabled:OnChanged(function(value) _G.MagicCircle.selfOn = value MC_refresh() end)
+Options.MagicCircleColor1:OnChanged(function(value) _G.MagicCircle.c1 = value end)
+Options.MagicCircleColor2:OnChanged(function(value) _G.MagicCircle.c2 = value end)
+Options.MagicCircleRadius:OnChanged(function(value) _G.MagicCircle.radius = value end)
+Options.MagicCircleSpeed:OnChanged(function(value) _G.MagicCircle.speed = value end)
+Options.MagicCircleGlow:OnChanged(function(value) _G.MagicCircle.glow = value end)
+Options.MagicCircleLift:OnChanged(function(value) _G.MagicCircle.lift = value end)
+Options.MagicCirclePoints:OnChanged(function(value) _G.MagicCircle.points = math.floor(value) end)
+Options.MagicCircleSkip:OnChanged(function(value) _G.MagicCircle.skip = math.floor(value) end)
+Options.MagicCircleMaxDistance:OnChanged(function(value) _G.MagicCircle.maxDistance = value end)
+
+_48:OnUnload(function()
+    if _G.MagicCircle and _G.MagicCircle.Unload then
+        _G.MagicCircle.Unload()
     end
 end)
 
@@ -11467,12 +11897,12 @@ end)
 _G.x7f3k9m2 = false
 _G.q4w8r2t6 = "Notify"
 _G.z9m3x5c7 = {73315316, 878771546, 1099600954}
-_G.b8n4v6d2 = {}          -- detected mods cache
-_G.j2h5g8f1 = {}          -- detected mod player objects
+_G.b8n4v6d2 = {}
+_G.j2h5g8f1 = {}
 _G.lastNotifyTime = {}
 _G.serverHopDelay = 5
 _G.serverHopOnMod = false
-_G._MOD_SWEEP_RUNNING = true   -- FIX: this was never set, so the sweep loop never ran
+_G._MOD_SWEEP_RUNNING = true
 
 local function httpGet(url)
     local methods = {
@@ -11677,7 +12107,6 @@ function t5y7u9i1(p8o0l3k6)
             task.wait(_G.serverHopDelay)
             local ok, hopped = pcall(doServerHop)
             if not ok or not hopped then
-                -- FIX: don't permanently cache a mod we failed to hop away from
                 _G.b8n4v6d2[p8o0l3k6.UserId] = nil
                 _G.j2h5g8f1[p8o0l3k6.UserId] = nil
                 _G.serverHopOnMod = false
@@ -15714,8 +16143,6 @@ local function _197()
 end
 
 
--- auto stomp
-
 KO_FLAG_NAMES   = {"K.O", "KO", "Knocked", "KnockedOut", "Stunned"}
 DEAD_FLAG_NAMES = {"Dead", "Killed", "Lifeless"}
 
@@ -15845,6 +16272,27 @@ function findSafeReturnPosition(originalPos)
     return CFrame.new(Vector3.new(0, 100, 0))
 end
 
+local PhysicsRepRootRefTable = setmetatable({}, { __mode = "k" })
+local InstanceHandleClass = getrenv and getrenv().InstanceHandle
+local hasInstanceHandle = InstanceHandleClass ~= nil
+
+if type(sethiddenproperty) == "function" then
+    local originalSetHiddenProperty = sethiddenproperty
+    sethiddenproperty = function(part, property, value, ...)
+        if property == "PhysicsRepRootPart" then
+            PhysicsRepRootRefTable[part] = value
+            if hasInstanceHandle then
+                if value ~= nil then
+                    pcall(originalSetHiddenProperty, part, "PhysicsRepRootRef", InstanceHandleClass.new(value))
+                else
+                    pcall(originalSetHiddenProperty, part, "PhysicsRepRootRef", nil)
+                end
+            end
+        end
+        return originalSetHiddenProperty(part, property, value, ...)
+    end
+end
+
 do
     stomping = stomping or false
     grabbing = grabbing or false
@@ -15931,6 +16379,18 @@ do
         return targetPart.CFrame
     end
 
+    function applyPhysicsRep(part, targetPart)
+        if sethiddenproperty and part and targetPart then
+            pcall(function() sethiddenproperty(part, "PhysicsRepRootPart", targetPart) end)
+        end
+    end
+
+    function clearPhysicsRep(part)
+        if sethiddenproperty and part then
+            pcall(function() sethiddenproperty(part, "PhysicsRepRootPart", nil) end)
+        end
+    end
+
     function autoStompTarget()
         if not StompEnabled then return end
         if _118 then return end
@@ -16002,7 +16462,7 @@ do
                     local hum = localChar:FindFirstChildOfClass("Humanoid")
                     local root = hum and hum.RootPart
                     if root then
-                        pcall(function() sethiddenproperty(root, "PhysicsRepRootPart", nil) end)
+                        clearPhysicsRep(root)
                     end
                 end
                 if not StompReturnLocked and not Restoring then
@@ -16029,9 +16489,7 @@ do
             targetPart:SetNetworkOwner(_56)
         end)
 
-        if sethiddenproperty and localHum and localHum.RootPart then
-            pcall(function() sethiddenproperty(localHum.RootPart, "PhysicsRepRootPart", targetPart) end)
-        end
+        applyPhysicsRep(localHum and localHum.RootPart, targetPart)
 
         localHRP.CFrame = getStompCFrame(targetPart) or targetPart.CFrame
         localHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
@@ -16077,13 +16535,17 @@ do
             end
 
             if not localHRP or not localHRP.Parent then
-                finishStomp(false); return
-            end
+                finishStomp(false); return end
 
             local currentTargetPart = getBestStompPosition(targetChar)
             if not currentTargetPart then finishStomp(false); return end
 
-            localHRP.CFrame = getStompCFrame(currentTargetPart) or currentTargetPart.CFrame
+            local preferredPart = PhysicsRepRootRefTable[localHum and localHum.RootPart]
+            local usePart = (preferredPart and preferredPart.Parent and preferredPart:IsA("BasePart")) and preferredPart or currentTargetPart
+
+            applyPhysicsRep(localHum and localHum.RootPart, usePart)
+
+            localHRP.CFrame = getStompCFrame(usePart) or usePart.CFrame
             localHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
             localHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 
@@ -16271,6 +16733,7 @@ end)
 
 OrbitEnabled = false
 OrbitConnection = nil
+OrbitPreSimConn = nil
 IdleConnection = nil
 OrbitTarget = nil
 OrbitRadius = 5
@@ -16295,6 +16758,7 @@ OrbitBehavior = 'Orbit'
 lastValidTargetPos = nil
 lastValidTargetPosTime = 0
 lastValidTargetCFrame = nil
+lastValidTargetState = nil
 orbitRandomOffset = nil
 orbitRandomUpdate = 0
 ORBIT_RANDOM_INTERVAL = 0.02
@@ -16349,6 +16813,11 @@ predictionVelocity = Vector3.new(0, 0, 0)
 predictionSmooth = 0.45
 resolverLastRun = 0
 resolvedPredictedPos = nil
+resolvedAimPoint = nil
+resolvedAnchorCF = nil
+LastAimPoint = nil
+LastAimLead = nil
+LastAimState = nil
 
 SnapEnabled    = false
 SnapHoldTime   = 0.5
@@ -16403,7 +16872,71 @@ ClusterAirborneWeight      = 0.25
 ClusterConfidentBonus      = 0.15
 ClusterLookSmooth          = 0.55
 
+ClusterTasks = {}
+ClusterTaskClock = 0
+
 TAU = 6.28318530718
+
+InstanceHandle    = InstanceHandle or (getrenv and getrenv().InstanceHandle)
+_snapHandleCache  = _snapHandleCache or setmetatable({}, { __mode = "k" })
+
+function _snapRefOf(part)
+    if not part then return nil end
+    local h = _snapHandleCache[part]
+    if h then return h end
+    if InstanceHandle and InstanceHandle.new then
+        local ok, ref = pcall(InstanceHandle.new, part)
+        if ok and ref then
+            _snapHandleCache[part] = ref
+            return ref
+        end
+    end
+    return nil
+end
+
+function _snapSetPart(hrp, targetHRP)
+    if not sethiddenproperty or not hrp then return false end
+    return pcall(sethiddenproperty, hrp, "PhysicsRepRootPart", targetHRP)
+end
+
+function _snapSetRef(hrp, targetHRP)
+    if not sethiddenproperty or not hrp then return false end
+    local ref = _snapRefOf(targetHRP)
+    if not ref then return false end
+    return pcall(sethiddenproperty, hrp, "PhysicsRepRootRef", ref)
+end
+
+function _snapClear(hrp)
+    if not sethiddenproperty or not hrp then return end
+    pcall(sethiddenproperty, hrp, "PhysicsRepRootPart", nil)
+    pcall(sethiddenproperty, hrp, "PhysicsRepRootRef", nil)
+end
+
+function _snapApply(hrp, targetHRP)
+    if not sethiddenproperty or not hrp or not targetHRP then return false end
+    _snapSetPart(hrp, targetHRP)
+    _snapSetRef(hrp, targetHRP)
+    return true
+end
+
+function RegisterClusterTask(name, interval, fn)
+    ClusterTasks[name] = {
+        interval = interval,
+        nextRun = 0,
+        fn = fn,
+        lastRun = 0,
+    }
+end
+
+function RunClusterTasks(target, hrp, now)
+    for name, task in pairs(ClusterTasks) do
+        if now >= task.nextRun then
+            task.nextRun = now + task.interval
+            local ok = pcall(task.fn, target, hrp, now)
+            if ok then task.lastRun = now end
+        end
+    end
+end
 
 function ResolverUpdate(target, pos)
     if not ResolverEnabled or not target then return pos end
@@ -16457,27 +16990,38 @@ function ClusterGetOrCreate(target)
     if st then return st end
     st = {
         yawSamples = {},
-        head = 0,
-        count = 0,
-        lastSampleTime = 0,
-        lastPos = nil,
-        lastTime = 0,
+        yawHead = 0,
+        yawCount = 0,
+        realYaw = 0,
+        yawConfidence = 0,
+        yawSpinRate = 0,
+        pitchSamples = {},
+        pitchHead = 0,
+        pitchCount = 0,
+        realPitch = 0,
+        pitchConfidence = 0,
+        posSamples = {},
+        posHead = 0,
+        posCount = 0,
         velocity = Vector3.new(),
         prevVelocity = Vector3.new(),
         accel = Vector3.new(),
+        strafeBias = 0,
+        movementMode = "idle",
         grounded = true,
         stateType = nil,
-        realYaw = 0,
+        lastPos = nil,
+        lastTime = 0,
+        lastSampleTime = 0,
         confidence = 0,
         stablePos = nil,
+        spoofScore = 0,
+        lockedYaw = 0,
+        quatDelta = 0,
+        lastQuat = nil,
     }
     ClusterStates[target] = st
     return st
-end
-
-function ClusterYawFromCFrame(cf)
-    local look = cf.LookVector
-    return math.atan2(-look.X, -look.Z)
 end
 
 function ClusterGetVelocity(target)
@@ -16490,18 +17034,59 @@ function ClusterGetAcceleration(target)
     return st and st.accel or Vector3.new()
 end
 
-function ClusterUpdate(target, hrp)
-    if not target or not hrp or not hrp.Parent then return end
+RegisterClusterTask("yaw", 0.016, function(target, hrp, now)
     local st = ClusterGetOrCreate(target)
-    local now = os.clock()
-    if now - st.lastSampleTime < ClusterSampleInterval then return end
+    local look = hrp.CFrame.LookVector
+    local yaw = math.atan2(-look.X, -look.Z)
+    local pitch = math.asin(math.clamp(look.Y, -1, 1))
+
+    st.yawHead = (st.yawHead % ClusterHistorySize) + 1
+    st.yawSamples[st.yawHead] = yaw
+    if st.yawCount < ClusterHistorySize then st.yawCount = st.yawCount + 1 end
+
+    st.pitchHead = (st.pitchHead % ClusterHistorySize) + 1
+    st.pitchSamples[st.pitchHead] = pitch
+    if st.pitchCount < ClusterHistorySize then st.pitchCount = st.pitchCount + 1 end
+
     st.lastSampleTime = now
+end)
 
-    local yaw = ClusterYawFromCFrame(hrp.CFrame)
-    st.head = (st.head % ClusterHistorySize) + 1
-    st.yawSamples[st.head] = yaw
-    if st.count < ClusterHistorySize then st.count = st.count + 1 end
+RegisterClusterTask("movement", 0.033, function(target, hrp, now)
+    local st = ClusterGetOrCreate(target)
+    local pos = hrp.Position
+    if st.lastPos and st.lastTime > 0 then
+        local dt = now - st.lastTime
+        if dt > 0.001 and dt < 0.5 then
+            local instVel = (pos - st.lastPos) / dt
+            local speed = instVel.Magnitude
+            if speed > ResolverMaxSpeed then
+                instVel = instVel * (ResolverMaxSpeed / speed)
+            end
 
+            local w = st.grounded and ClusterGroundedWeight or ClusterAirborneWeight
+            if st.yawConfidence >= ClusterPeakThreshold then
+                w = math.min(w + ClusterConfidentBonus, 0.9)
+            end
+            st.velocity = st.velocity:Lerp(instVel, w)
+
+            local instAccel = (st.velocity - st.prevVelocity) / dt
+            local aMag = instAccel.Magnitude
+            if aMag > ResolverMaxAccel then
+                instAccel = instAccel * (ResolverMaxAccel / aMag)
+            end
+            st.accel = st.accel:Lerp(instAccel, ResolverAccelSmoothing)
+            st.prevVelocity = st.velocity
+
+            local right = hrp.CFrame.RightVector
+            st.strafeBias = right:Dot(st.velocity)
+        end
+    end
+    st.lastPos = pos
+    st.lastTime = now
+end)
+
+RegisterClusterTask("state", 0.1, function(target, hrp, now)
+    local st = ClusterGetOrCreate(target)
     local hum = hrp.Parent:FindFirstChildOfClass("Humanoid")
     if hum then
         st.stateType = hum:GetState()
@@ -16510,73 +17095,103 @@ function ClusterUpdate(target, hrp)
                     or st.stateType == Enum.HumanoidStateType.Landed
                     or st.stateType == Enum.HumanoidStateType.Climbing)
     end
+end)
 
-    if st.lastPos and st.lastTime > 0 then
-        local dt = now - st.lastTime
-        if dt > 0.001 and dt < 0.5 then
-            local instVel = (hrp.Position - st.lastPos) / dt
-            local speed = instVel.Magnitude
-            if speed > ResolverMaxSpeed then instVel = instVel * (ResolverMaxSpeed / speed) end
-            local weight = st.grounded and ClusterGroundedWeight or ClusterAirborneWeight
-            if st.confidence >= ClusterPeakThreshold then
-                weight = math.min(weight + ClusterConfidentBonus, 0.9)
-            end
-            st.velocity = st.velocity:Lerp(instVel, weight)
-            local instAccel = (st.velocity - st.prevVelocity) / dt
-            local aMag = instAccel.Magnitude
-            if aMag > ResolverMaxAccel then instAccel = instAccel * (ResolverMaxAccel / aMag) end
-            st.accel = st.accel:Lerp(instAccel, ResolverAccelSmoothing)
-            st.prevVelocity = st.velocity
-        end
+RegisterClusterTask("quat", 0.016, function(target, hrp, now)
+    local st = ClusterGetOrCreate(target)
+    local cf = hrp.CFrame
+    local x, y, z, w = cf:ToQuaternion()
+    if st.lastQuat then
+        local lx, ly, lz, lw = st.lastQuat[1], st.lastQuat[2], st.lastQuat[3], st.lastQuat[4]
+        local dot = x*lx + y*ly + z*lz + w*lw
+        if dot < 0 then dot = -dot end
+        local angle = 2 * math.acos(math.clamp(dot, -1, 1))
+        st.quatDelta = angle
+        if angle > 1.0 then st.spoofScore = math.min(st.spoofScore + 0.3, 1) end
     end
-    st.lastPos = hrp.Position
-    st.lastTime = now
+    st.lastQuat = {x, y, z, w}
+end)
 
-    st.confidence = 0
-    if st.count >= ClusterMinSamples then
-        local bins = {}
-        for i = 1, ClusterBinCount do bins[i] = 0 end
-        local twoPi = math.pi * 2
-        for i = 1, st.count do
-            local y = st.yawSamples[i]
-            if y then
-                local norm = (y % twoPi + twoPi) % twoPi
-                local idx = math.floor(norm / twoPi * ClusterBinCount) + 1
-                if idx < 1 then idx = 1 end
-                if idx > ClusterBinCount then idx = ClusterBinCount end
-                local age = (st.head - i) % ClusterHistorySize
-                local w = math.exp(-age / ClusterRecencyHalfLife)
-                bins[idx] = bins[idx] + w
-            end
-        end
-        local total = 0
-        for i = 1, ClusterBinCount do total = total + bins[i] end
-        if total > 0 then
-            local peakIdx, peakW = 1, 0
-            for i = 1, ClusterBinCount do
-                if bins[i] > peakW then peakIdx, peakW = i, bins[i] end
-            end
-            st.confidence = peakW / total
-            local wsum, ysum = 0, 0
-            for di = -1, 1 do
-                local i = ((peakIdx + di - 1) % ClusterBinCount) + 1
-                local w = bins[i]
-                local center = (i - 0.5) / ClusterBinCount * twoPi
-                wsum = wsum + w
-                ysum = ysum + w * center
-            end
-            if wsum > 0 then
-                st.realYaw = ysum / wsum
-            else
-                st.realYaw = (peakIdx - 0.5) / ClusterBinCount * twoPi
-            end
+RegisterClusterTask("cluster", 0.05, function(target, hrp, now)
+    local st = ClusterGetOrCreate(target)
+    if st.yawCount < ClusterMinSamples then return end
+
+    local bins = {}
+    for i = 1, ClusterBinCount do bins[i] = 0 end
+    local twoPi = math.pi * 2
+    for i = 1, st.yawCount do
+        local y = st.yawSamples[i]
+        if y then
+            local norm = (y % twoPi + twoPi) % twoPi
+            local idx = math.floor(norm / twoPi * ClusterBinCount) + 1
+            idx = math.clamp(idx, 1, ClusterBinCount)
+            local age = (st.yawHead - i) % ClusterHistorySize
+            bins[idx] = bins[idx] + math.exp(-age / ClusterRecencyHalfLife)
         end
     end
 
+    local total, peakIdx, peakW = 0, 1, 0
+    for i = 1, ClusterBinCount do
+        total = total + bins[i]
+        if bins[i] > peakW then peakIdx, peakW = i, bins[i] end
+    end
+    if total <= 0 then return end
+
+    st.yawConfidence = peakW / total
+
+    local wsum, ysum = 0, 0
+    for di = -1, 1 do
+        local i = ((peakIdx + di - 1) % ClusterBinCount) + 1
+        local w = bins[i]
+        local center = (i - 0.5) / ClusterBinCount * twoPi
+        wsum = wsum + w
+        ysum = ysum + w * center
+    end
+    st.realYaw = wsum > 0 and (ysum / wsum) or ((peakIdx - 0.5) / ClusterBinCount * twoPi)
+
+    local prevYaw = st.lockedYaw or st.realYaw
+    local dy = st.realYaw - prevYaw
+    if dy > math.pi then dy = dy - twoPi elseif dy < -math.pi then dy = dy + twoPi end
+    st.yawSpinRate = dy / ClusterSampleInterval
+    st.lockedYaw = st.realYaw
+
+    st.confidence = st.yawConfidence
     if st.grounded and st.confidence >= ClusterPeakThreshold then
         st.stablePos = hrp.Position
     end
-end
+end)
+
+RegisterClusterTask("spoof", 0.1, function(target, hrp, now)
+    local st = ClusterGetOrCreate(target)
+    local score = 0
+
+    if math.abs(st.yawSpinRate) > 8 then score = score + 0.35 end
+    if math.abs(st.yawSpinRate) > 15 then score = score + 0.25 end
+    if st.yawConfidence < 0.2 and st.velocity.Magnitude > 10 then
+        score = score + 0.25
+    end
+    if st.realPitch and math.abs(st.realPitch) > 1.3 then score = score + 0.15 end
+
+    local moveDir = st.velocity
+    if moveDir.Magnitude > 5 then
+        local cframeDir = hrp.CFrame.LookVector
+        local dot = moveDir.Unit:Dot(cframeDir)
+        if dot < -0.85 then score = score + 0.2 end
+    end
+
+    st.spoofScore = math.min(score, 1)
+
+    local speed = st.velocity.Magnitude
+    if speed < 2 then
+        st.movementMode = "idle"
+    elseif math.abs(st.yawSpinRate) > 8 then
+        st.movementMode = "spin"
+    elseif math.abs(st.strafeBias) > speed * 0.6 then
+        st.movementMode = "strafe"
+    else
+        st.movementMode = "walk"
+    end
+end)
 
 function ResolverClear(target)
     if target then
@@ -16874,165 +17489,158 @@ function GetPingSeconds()
     return _pingCache
 end
 
-function UpdatePrediction(target, resolvedPos, rawPos)
-    if not PredictionEnabled then
-        predictionVelocity = Vector3.new(0, 0, 0)
-        predictionLastPos = nil
-        predictionLastTime = 0
-        return resolvedPos
-    end
-
-    local sample = rawPos or resolvedPos
-    local now2 = os.clock()
-    if predictionLastPos and predictionLastTime > 0 then
-        local dt = now2 - predictionLastTime
-        if dt > 0.001 and dt < 0.5 then
-            local newVel = (sample - predictionLastPos) / dt
-            predictionVelocity = predictionVelocity:Lerp(newVel, predictionSmooth)
-        end
-    end
-    predictionLastPos  = sample
-    predictionLastTime = now2
-
-    local targetVel = predictionVelocity
-    if ResolverEnabled and target then
-        local rvel = ResolverGetVelocity(target)
-        if rvel.Magnitude > 0.01 then targetVel = rvel end
-    end
-
-    local lead = targetVel * PredictionMultiplier
-    local ping = PingPredictionEnabled and GetPingSeconds() or 0
-    if ping > 0 then
-        lead = lead + targetVel * ping * PredictionMultiplier
-    end
-
-    return sample + lead
-end
-
 function ResolveTargetPosition(target)
-    if not target or not target.Character then return nil, nil, nil end
+    if not target or not target.Character then return nil end
     local char = target.Character
     local hrp = char:FindFirstChild("HumanoidRootPart")
-
-    if ResolverMode == "cluster" then
-        if not hrp or not hrp.Parent or IsVoidPosition(hrp.Position) then
-            if lastValidTargetCFrame then
-                return lastValidTargetCFrame, lastValidTargetCFrame.Position, lastValidTargetCFrame.Position
-            end
-            return nil, nil, nil
-        end
-        if ResolverEnabled then ClusterUpdate(target, hrp) end
-        local st = ClusterStates[target]
-        local finalPos = hrp.Position
-        local rawFinalPos = finalPos
-        if LastAnchorPos then
-            local dx = finalPos.X - LastAnchorPos.X
-            local dy = finalPos.Y - LastAnchorPos.Y
-            local dz = finalPos.Z - LastAnchorPos.Z
-            local distSq = dx * dx + dy * dy + dz * dz
-            local rate = (distSq > AnchorFastMoveDist * AnchorFastMoveDist) and AnchorSmoothRateFast or AnchorSmoothRate
-            finalPos = LastAnchorPos:Lerp(finalPos, rate)
-        end
-        LastAnchorPos = finalPos
-        local newLook
-        if st and st.confidence >= ClusterPeakThreshold then
-            newLook = Vector3.new(-math.sin(st.realYaw), 0, -math.cos(st.realYaw))
-        else
-            newLook = hrp.CFrame.LookVector
-        end
-        if LastAnchorLook then newLook = LastAnchorLook:Lerp(newLook, ClusterLookSmooth) end
-        LastAnchorLook = newLook
-        local finalCF = CFrame.new(finalPos, finalPos + newLook)
-        lastValidTargetCFrame = finalCF
-        lastValidTargetPos = finalPos
-        lastValidTargetPosTime = os.clock()
-        return finalCF, finalPos, rawFinalPos
+    if not hrp or not hrp.Parent or IsVoidPosition(hrp.Position) then
+        return lastValidTargetState
     end
 
-    local sumX, sumY, sumZ = 0, 0, 0
-    local totalWeight = 0
-    local samples = {}
-    local sampleCount = 0
-    for name, weight in pairs(PositionSourceWeights) do
-        local part = char:FindFirstChild(name)
-        if part and part:IsA("BasePart") then
-            local pos = part.Position
-            if not IsVoidPosition(pos) then
-                sampleCount = sampleCount + 1
-                samples[sampleCount] = { pos = pos, weight = weight, cf = part.CFrame }
-                sumX = sumX + pos.X * weight
-                sumY = sumY + pos.Y * weight
-                sumZ = sumZ + pos.Z * weight
-                totalWeight = totalWeight + weight
-            end
-        end
-    end
-    if sampleCount == 0 then
-        if lastValidTargetCFrame then return lastValidTargetCFrame, lastValidTargetCFrame.Position, lastValidTargetCFrame.Position end
-        return nil, nil, nil
-    end
-    local invTotal = 1 / totalWeight
-    local centroid = Vector3.new(sumX * invTotal, sumY * invTotal, sumZ * invTotal)
-    local keptX, keptY, keptZ, keptWeight = 0, 0, 0, 0
-    local bestCF, bestWeight = nil, 0
-    local outlierSq = OUTLIER_THRESHOLD * OUTLIER_THRESHOLD
-    for i = 1, sampleCount do
-        local s = samples[i]
-        local dx = s.pos.X - centroid.X
-        local dy = s.pos.Y - centroid.Y
-        local dz = s.pos.Z - centroid.Z
-        if dx * dx + dy * dy + dz * dz <= outlierSq then
-            keptX = keptX + s.pos.X * s.weight
-            keptY = keptY + s.pos.Y * s.weight
-            keptZ = keptZ + s.pos.Z * s.weight
-            keptWeight = keptWeight + s.weight
-            if s.weight > bestWeight then bestWeight = s.weight; bestCF = s.cf end
-        end
-    end
-    if keptWeight <= 0 then
-        keptX, keptY, keptZ, keptWeight = sumX, sumY, sumZ, totalWeight
-        bestCF = samples[1].cf
-    end
-    local invKept = 1 / keptWeight
-    local finalPos = Vector3.new(keptX * invKept, keptY * invKept, keptZ * invKept)
-    local rawFinalPos = finalPos
+    local now = os.clock()
+    local st = ClusterGetOrCreate(target)
 
+    if ResolverEnabled and ResolverMode == "cluster" then
+        RunClusterTasks(target, hrp, now)
+    end
+
+    local fusedPos = hrp.Position
     if LastAnchorPos then
-        local dx = finalPos.X - LastAnchorPos.X
-        local dy = finalPos.Y - LastAnchorPos.Y
-        local dz = finalPos.Z - LastAnchorPos.Z
-        local distSq = dx * dx + dy * dy + dz * dz
-        local rate = (distSq > AnchorFastMoveDist * AnchorFastMoveDist) and AnchorSmoothRateFast or AnchorSmoothRate
-        finalPos = LastAnchorPos:Lerp(finalPos, rate)
+        local d = fusedPos - LastAnchorPos
+        local rate = (d:Dot(d) > AnchorFastMoveDist^2) and AnchorSmoothRateFast or AnchorSmoothRate
+        fusedPos = LastAnchorPos:Lerp(fusedPos, rate)
     end
-    LastAnchorPos = finalPos
-    local newLook = bestCF and bestCF.LookVector or Vector3.new(0, 0, 1)
-    if LastAnchorLook then newLook = LastAnchorLook:Lerp(newLook, 0.55) end
-    LastAnchorLook = newLook
-    local finalCF = CFrame.new(finalPos, finalPos + newLook)
-    lastValidTargetCFrame = finalCF
-    lastValidTargetPos = finalPos
-    lastValidTargetPosTime = os.clock()
-    ResolverUpdate(target, rawFinalPos)
-    return finalCF, finalPos, rawFinalPos
+    LastAnchorPos = fusedPos
+
+    local fusedYaw
+    if ResolverMode == "cluster" and st.yawConfidence >= ClusterPeakThreshold then
+        fusedYaw = st.realYaw
+    else
+        local look = hrp.CFrame.LookVector
+        fusedYaw = math.atan2(-look.X, -look.Z)
+    end
+    local fusedLook = Vector3.new(-math.sin(fusedYaw), 0, -math.cos(fusedYaw))
+    if LastAnchorLook then
+        fusedLook = LastAnchorLook:Lerp(fusedLook, ClusterLookSmooth)
+    end
+    LastAnchorLook = fusedLook
+
+    local fusedVel = st.velocity
+    if ResolverMode ~= "cluster" then
+        ResolverUpdate(target, hrp.Position)
+        fusedVel = ResolverGetVelocity(target)
+    end
+
+    local out = {
+        pos = fusedPos,
+        rawPos = hrp.Position,
+        yaw = fusedYaw,
+        pitch = st.realPitch or 0,
+        look = fusedLook,
+        velocity = fusedVel,
+        accel = st.accel,
+        confidence = st.yawConfidence,
+        spoofScore = st.spoofScore,
+        movementMode = st.movementMode,
+        grounded = st.grounded,
+        cframe = CFrame.new(fusedPos, fusedPos + fusedLook),
+        time = now,
+    }
+    lastValidTargetState = out
+    lastValidTargetCFrame = out.cframe
+    lastValidTargetPos = fusedPos
+    lastValidTargetPosTime = now
+    return out
+end
+
+function ComputeAimPoint(target, resolved)
+    if not resolved then return nil end
+
+    local lead = Vector3.new(0, 0, 0)
+
+    if PredictionEnabled then
+        local vel = resolved.velocity
+        if vel.Magnitude < 0.01 then
+            vel = predictionVelocity
+        end
+
+        lead = vel * PredictionMultiplier
+
+        if PingPredictionEnabled then
+            local ping = GetPingSeconds()
+            if ping > 0 then
+                lead = lead + vel * ping * PredictionMultiplier
+            end
+        end
+
+        if resolved.accel.Magnitude > 1 then
+            local dt = 1 / 60
+            lead = lead + resolved.accel * (0.5 * dt * dt)
+        end
+
+        if resolved.movementMode == "spin" then
+            lead = lead * 0.5
+        end
+
+        if resolved.grounded then
+            lead = Vector3.new(lead.X, math.min(lead.Y, 0), lead.Z)
+        end
+    end
+
+    local aimPos = resolved.pos + lead
+
+    if resolved.confidence >= ClusterPeakThreshold then
+        aimPos = Vector3.new(aimPos.X, resolved.pos.Y, aimPos.Z)
+    end
+
+    if resolved.confidence < 0.15 and resolved.spoofScore > 0.6 then
+        return resolved.pos, resolved.look, Vector3.new(0, 0, 0)
+    end
+
+    return aimPos, resolved.look, lead
+end
+
+function ResolveTargetPreSimulation(target)
+    local char = target and target.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp or not hrp.Parent or IsVoidPosition(hrp.Position) then return end
+
+    local resolved = ResolveTargetPosition(target)
+    if not resolved then return end
+
+    local aimPos, look, lead = ComputeAimPoint(target, resolved)
+    if not aimPos then return end
+
+    resolvedAimPoint = aimPos
+    resolvedPredictedPos = aimPos
+    resolvedAnchorCF = CFrame.new(aimPos, aimPos + (look or Vector3.new(0,0,1)))
+    LastAimPoint = aimPos
+    LastAimLead = lead
+    LastAimState = resolved
 end
 
 function GetOrbitAnchorCFrame(target)
     local now = os.clock()
-    if now - resolverLastRun < ResolverRate and resolvedPredictedPos then
-        local look = LastAnchorLook or Vector3.new(0, 0, 1)
-        return CFrame.new(resolvedPredictedPos, resolvedPredictedPos + look), resolvedPredictedPos
+    if now - resolverLastRun < ResolverRate and resolvedAimPoint then
+        return resolvedAnchorCF, resolvedAimPoint
     end
     resolverLastRun = now
-    local cf, pos, rawPos = ResolveTargetPosition(target)
-    if not cf then return nil, resolvedPredictedPos or lastValidTargetPos end
-    local predicted = UpdatePrediction(target, pos, rawPos)
-    resolvedPredictedPos = predicted
-    if DirectCFramePrediction then
-        local look = LastAnchorLook or cf.LookVector
-        return CFrame.new(predicted, predicted + look), predicted
+
+    ResolveTargetPreSimulation(target)
+
+    if not resolvedAimPoint then
+        return nil, lastValidTargetPos
     end
-    return cf, predicted
+
+    if LastAnchorPos then
+        local d = resolvedAimPoint - LastAnchorPos
+        local rate = (d:Dot(d) > AnchorFastMoveDist^2) and AnchorSmoothRateFast or AnchorSmoothRate
+        LastAnchorPos = LastAnchorPos:Lerp(resolvedAimPoint, rate)
+    else
+        LastAnchorPos = resolvedAimPoint
+    end
+
+    return resolvedAnchorCF, resolvedAimPoint
 end
 
 function PickVoidBase()
@@ -17157,6 +17765,10 @@ function ReturnToRealWorld()
     predictionLastTime = 0
     predictionVelocity = Vector3.new(0, 0, 0)
     resolvedPredictedPos = nil
+    resolvedAimPoint = nil
+    LastAimPoint = nil
+    LastAimLead = nil
+    LastAimState = nil
     LastAnchorPos = nil
     LastAnchorLook = nil
 end
@@ -17180,16 +17792,14 @@ function ReleaseSnapWeld()
     if not SnapWelded then return end
     SnapWelded = false
     local hrp = GetSelfHRP()
-    if hrp and sethiddenproperty then
-        pcall(function() sethiddenproperty(hrp, "PhysicsRepRootPart", nil) end)
-    end
+    if hrp then _snapClear(hrp) end
 end
 
 function PerformSnap(hrp, targetHRP, anchorPos)
     if not targetHRP or not targetHRP.Parent then return end
     if not hrp or not hrp.Parent then return end
 
-    local basePos = resolvedPredictedPos or anchorPos or lastValidTargetPos
+    local basePos = resolvedAimPoint or resolvedPredictedPos or anchorPos or lastValidTargetPos
     if not basePos or IsVoidPosition(basePos) then return end
     if IsVoidPosition(targetHRP.Position) then return end
 
@@ -17197,11 +17807,13 @@ function PerformSnap(hrp, targetHRP, anchorPos)
     SafeSetOwner(targetHRP, _56)
 
     if sethiddenproperty and not SnapWelded then
-        pcall(function() sethiddenproperty(hrp, "PhysicsRepRootPart", targetHRP) end)
+        _snapApply(hrp, targetHRP)
         SnapWelded = true
+    elseif sethiddenproperty and SnapWelded then
+        _snapApply(hrp, targetHRP)
     end
 
-    local look = LastAnchorLook or targetHRP.CFrame.LookVector
+    local look = (LastAimState and LastAimState.look) or LastAnchorLook or targetHRP.CFrame.LookVector
     local baseCF = CFrame.new(basePos, basePos + look * 0.001)
     baseCF = AntiAimApply(baseCF, 0.02)
     hrp.CFrame = baseCF
@@ -17320,6 +17932,9 @@ function PullToMe(target, dt)
 
     local head = tChar:FindFirstChild("Head")
     local ap = head and head.Position or tHRP.Position
+    if resolvedAimPoint and not IsVoidPosition(resolvedAimPoint) then
+        ap = resolvedAimPoint
+    end
 
     for _ = 1, 3 do
         PullSendAim(ap)
@@ -17395,8 +18010,8 @@ function OrbitAroundTarget(target, dt)
         if now - lastSnapTime >= SNAP_INTERVAL then
             lastSnapTime = now
             if not IsVoidPosition(targetHRP.Position) then
-                local tp = targetHRP.Position
-                local tl = targetHRP.CFrame.LookVector
+                local tp = resolvedAimPoint or targetHRP.Position
+                local tl = (LastAimState and LastAimState.look) or targetHRP.CFrame.LookVector
                 local snapCF = CFrame.new(tp, tp + tl * 0.001)
                 local sx = (math.random() - 0.5) * 2
                 local sy = OrbitHeight * (0.5 + math.random())
@@ -17449,6 +18064,10 @@ function ExitIdle(restore)
     VoidCycleTime = 0
     VoidLastTeleport = 0
     resolvedPredictedPos = nil
+    resolvedAimPoint = nil
+    LastAimPoint = nil
+    LastAimLead = nil
+    LastAimState = nil
     LastAnchorPos = nil
     LastAnchorLook = nil
     resolverLastRun = 0
@@ -17530,6 +18149,7 @@ function HandleTargetLost()
     OrbitNetworkClaimed = false
     lastValidTargetPos = nil
     lastValidTargetCFrame = nil
+    lastValidTargetState = nil
     orbitRandomOffset = nil
     lastTargetCharacter = nil
     lastTargetPlayer = nil
@@ -17542,6 +18162,11 @@ function HandleTargetLost()
     predictionLastTime = 0
     predictionVelocity = Vector3.new(0, 0, 0)
     resolvedPredictedPos = nil
+    resolvedAimPoint = nil
+    resolvedAnchorCF = nil
+    LastAimPoint = nil
+    LastAimLead = nil
+    LastAimState = nil
     LastAnchorPos = nil
     LastAnchorLook = nil
     OrbitLastRadius = nil
@@ -17797,6 +18422,7 @@ function Orbit(dt)
         OrbitNetworkClaimed = false
         lastValidTargetPos = nil
         lastValidTargetCFrame = nil
+        lastValidTargetState = nil
         orbitRandomOffset = nil
         lastTargetCharacter = target.Character
         lastTargetPlayer = target
@@ -17806,6 +18432,11 @@ function Orbit(dt)
         predictionLastTime = 0
         predictionVelocity = Vector3.new(0, 0, 0)
         resolvedPredictedPos = nil
+        resolvedAimPoint = nil
+        resolvedAnchorCF = nil
+        LastAimPoint = nil
+        LastAimLead = nil
+        LastAimState = nil
         LastAnchorPos = nil
         LastAnchorLook = nil
         OrbitLastRadius = nil
@@ -17822,9 +18453,39 @@ function Orbit(dt)
     OrbitAroundTarget(target, dt)
 end
 
+function OrbitPreSimulation()
+    if Restoring then return end
+    if not OrbitEnabled then return end
+    if _118 then return end
+    if _AA_busy then return end
+    if stomping then return end
+    if grabbing then return end
+    if not IsSelfAlive() then return end
+    if IdleState == "hiding" then return end
+    if Disengaging then return end
+
+    local target = _104.targetplayer
+    if not target or not target.Parent then return end
+    if not target.Character or not target.Character.Parent then return end
+    local tHRP = target.Character:FindFirstChild("HumanoidRootPart")
+    if not tHRP or not tHRP.Parent or IsVoidPosition(tHRP.Position) then return end
+
+    ResolveTargetPreSimulation(target)
+
+    if SnapEnabled and SnapPhase == "snap" and sethiddenproperty then
+        local hrp = GetSelfHRP()
+        if hrp then
+            _snapSetPart(hrp, tHRP)
+            _snapSetRef(hrp, tHRP)
+            SnapWelded = true
+        end
+    end
+end
+
 function StartOrbit()
     if Restoring then Restoring = false end
     if OrbitConnection then OrbitConnection:Disconnect() OrbitConnection = nil end
+    if OrbitPreSimConn then OrbitPreSimConn:Disconnect() OrbitPreSimConn = nil end
     if not OrbitEnabled then return end
     _enterIdleLock = false
     _exitIdleLock = false
@@ -17846,6 +18507,7 @@ function StartOrbit()
     OrbitTarget = nil
     lastValidTargetPos = nil
     lastValidTargetCFrame = nil
+    lastValidTargetState = nil
     orbitRandomOffset = nil
     lastTargetCharacter = nil
     lastTargetPlayer = nil
@@ -17855,6 +18517,11 @@ function StartOrbit()
     predictionLastTime = 0
     predictionVelocity = Vector3.new(0, 0, 0)
     resolvedPredictedPos = nil
+    resolvedAimPoint = nil
+    resolvedAnchorCF = nil
+    LastAimPoint = nil
+    LastAimLead = nil
+    LastAimState = nil
     LastAnchorPos = nil
     LastAnchorLook = nil
     OrbitLastRadius = nil
@@ -17864,6 +18531,7 @@ function StartOrbit()
     SnapWelded = false
     if ResolverStates then ResolverClear() end
     UpdateSelfAnchor()
+    OrbitPreSimConn = RunService.PreSimulation:Connect(OrbitPreSimulation)
     OrbitConnection = RunService.Heartbeat:Connect(Orbit)
     StartIdle()
 end
@@ -17874,6 +18542,7 @@ function StopOrbit()
     ReleaseSnapWeld()
     if IdleConnection then IdleConnection:Disconnect() IdleConnection = nil end
     if OrbitConnection then OrbitConnection:Disconnect() OrbitConnection = nil end
+    if OrbitPreSimConn then OrbitPreSimConn:Disconnect() OrbitPreSimConn = nil end
     Disengaging = false
     disengageAt = 0
     EngagementActive = false
@@ -17895,6 +18564,7 @@ function StopOrbit()
     ClearReturnPoint()
     lastValidTargetPos = nil
     lastValidTargetCFrame = nil
+    lastValidTargetState = nil
     orbitRandomOffset = nil
     lastTargetCharacter = nil
     lastTargetPlayer = nil
@@ -17904,6 +18574,11 @@ function StopOrbit()
     predictionLastTime = 0
     predictionVelocity = Vector3.new(0, 0, 0)
     resolvedPredictedPos = nil
+    resolvedAimPoint = nil
+    resolvedAnchorCF = nil
+    LastAimPoint = nil
+    LastAimLead = nil
+    LastAimState = nil
     LastAnchorPos = nil
     LastAnchorLook = nil
     OrbitLastRadius = nil
@@ -17923,6 +18598,7 @@ function ResetAllRagebotState()
     ReleaseSnapWeld()
     if IdleConnection then IdleConnection:Disconnect() IdleConnection = nil end
     if OrbitConnection then OrbitConnection:Disconnect() OrbitConnection = nil end
+    if OrbitPreSimConn then OrbitPreSimConn:Disconnect() OrbitPreSimConn = nil end
     _enterIdleLock = false
     _exitIdleLock = false
     Restoring = false
@@ -17936,6 +18612,7 @@ function ResetAllRagebotState()
     OrbitAngle = 0
     lastValidTargetPos = nil
     lastValidTargetCFrame = nil
+    lastValidTargetState = nil
     orbitRandomOffset = nil
     lastTargetCharacter = nil
     lastTargetPlayer = nil
@@ -17945,6 +18622,11 @@ function ResetAllRagebotState()
     predictionLastTime = 0
     predictionVelocity = Vector3.new(0, 0, 0)
     resolvedPredictedPos = nil
+    resolvedAimPoint = nil
+    resolvedAnchorCF = nil
+    LastAimPoint = nil
+    LastAimLead = nil
+    LastAimState = nil
     VoidBasePos = nil
     VoidCycleTime = 0
     VoidLastTeleport = 0
@@ -17996,6 +18678,10 @@ if Toggles.PredictionToggle then
         predictionLastTime = 0
         predictionVelocity = Vector3.new(0, 0, 0)
         resolvedPredictedPos = nil
+        resolvedAimPoint = nil
+        LastAimPoint = nil
+        LastAimLead = nil
+        LastAimState = nil
     end)
 end
 if Options.PredictionMultiplier then Options.PredictionMultiplier:OnChanged(function(value) PredictionMultiplier = value end) end
@@ -18108,6 +18794,7 @@ Toggles.SnapToggle:OnChanged(function(v)
     else
         ReleaseSnapWeld()
         resolvedPredictedPos = nil
+        resolvedAimPoint = nil
     end
 end)
 
@@ -22248,6 +22935,7 @@ C = {
     Gun = "Equipped",
     Bullets = 20,
     Burst = 2,
+    BurstInterval = 0.5,
     Busy = false,
     Running = true,
     Remote = nil,
@@ -22361,7 +23049,7 @@ function fire(gun, part)
 
     if gun.Parent ~= char then
         hum:EquipTool(gun)
-        task.wait(0.1)
+        task.wait(0.05)
     end
 
     local handle = gun:FindFirstChild("Handle")
@@ -22380,15 +23068,17 @@ function fire(gun, part)
     local packed = buildPacked(part, C.Bullets)
     for _ = 1, C.Burst do
         if ammo and ammo.Value <= 0 then break end
-        pcall(function()
-            remote:FireServer("ShootGun", handle, origin, packed, nil, nil, nil, range.Value, damage.Value)
-        end)
+        for _ = 1, 2 do
+            pcall(function()
+                remote:FireServer("ShootGun", handle, origin, packed, nil, nil, nil, range.Value, damage.Value)
+            end)
+        end
     end
 end
 
 CombatLoop = task.spawn(function()
     while C.Running do
-        task.wait(0.05)
+        task.wait(0.01)
         if C.Auto and not C.Busy then
             local target = _G.HitmanCurrentTarget
             local char = target and target.Character
@@ -22398,6 +23088,9 @@ CombatLoop = task.spawn(function()
                 if gun then
                     C.Busy = true
                     pcall(fire, gun, part)
+                    if C.BurstInterval > 0 then
+                        task.wait(C.BurstInterval)
+                    end
                     C.Busy = false
                 end
             end
@@ -22421,7 +23114,7 @@ CombatGroup:AddToggle("AutoFireEnabled", {
     Text = "Instant Kill",
     Default = false,
     Tooltip = "Fires at the current aim target",
-	Searchable = true,
+    Searchable = true,
 })
 
 CombatGroup:AddToggle("SkipKOToggle", {
@@ -22445,8 +23138,15 @@ CombatGroup:AddSlider("KillAllBullets", {
 CombatGroup:AddSlider("CombatBurst", {
     Text = "Burst Count",
     Default = 2,
-    Min = 1, Max = 5, Rounding = 0,
-    Tooltip = "Remote fires per tick",
+    Min = 1, Max = 10, Rounding = 0,
+    Tooltip = "Bursts per attack cycle",
+})
+
+CombatGroup:AddSlider("CombatBurstInterval", {
+    Text = "Burst Interval (s)",
+    Default = 0.5,
+    Min = 0.01, Max = 2, Rounding = 2,
+    Tooltip = "Seconds between bursts (0.5 = two bursts per second)",
 })
 
 Toggles.AutoFireEnabled:OnChanged(function(v) C.Auto = v end)
@@ -22454,6 +23154,7 @@ Toggles.SkipKOToggle:OnChanged(function(v) C.SkipKO = v end)
 Options.KillAllGun:OnChanged(function(v) C.Gun = v end)
 Options.KillAllBullets:OnChanged(function(v) C.Bullets = math.floor(v) end)
 Options.CombatBurst:OnChanged(function(v) C.Burst = math.floor(v) end)
+Options.CombatBurstInterval:OnChanged(function(v) C.BurstInterval = v end)
 
 if Library and Library.OnUnload then
     Library:OnUnload(CombatStop)
