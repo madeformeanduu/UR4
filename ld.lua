@@ -1108,6 +1108,10 @@ _G.aur_asset_ids = {
     waves = "94581063446738", pixel = "90816193741219", soundwaves = "114870034653215",
     king = "93563147247398", balloflight = "111538260393666", robes = "89189106998138",
     cinco = "108479261729538", hallownest = "13157241929", special = "126521784338665",
+    Cardhandler = "10373359918", Tridents = "9098706617", Aether = "9021585133",
+    Riverofstars = "9256108828", Trials = "8746150090",
+    wingsofangels = "100676015469934", avatar = "8261337603", enchantment = "9952334427",
+	gravity = "10446434302", 
 }
 
 function _G.aur_ensure_assets()
@@ -1458,7 +1462,7 @@ end
 
 AuraDep = AuraSection:AddDependencyBox()
 AuraDep:AddDropdown('AuraType', {
-    Values = {"starlight", "heavenly", "ribbon", "sakura", "angel", "wind", "flow", "star", "explo", "waves", "pixel", "soundwaves", "king", "balloflight", "robes", "cinco", "hallownest", "special"},
+    Values = {"starlight", "heavenly", "ribbon", "sakura", "angel", "wind", "flow", "star", "explo", "waves", "pixel", "soundwaves", "king", "balloflight", "robes", "cinco", "hallownest", "special", "Cardhandler", "Tridents", "Aether", "Riverofstars", "Trials", "wingsofangels", "avatar", "enchantment", "gravity"},
     Default = 'angel',
     Text = 'Aura Type',
 })
@@ -15899,7 +15903,10 @@ end
 
 local function _194()
     if not _104.active then
-        _194_SetText("")
+        if _194_LastText ~= "" then
+            _194_SetText("")
+            _194_LastText = ""
+        end
         return
     end
 
@@ -15909,6 +15916,8 @@ local function _194()
             _135.TextColor3 = tc
         end
     end
+
+    local newText = ""
 
     if _isMode("target all") or _isMode("multi") then
         local now = os.clock()
@@ -15927,78 +15936,77 @@ local function _194()
                 _104._taText = "no players"
             end
         end
-        _194_SetText(_104._taText)
+        newText = _104._taText
     elseif _104.targetplayer then
         local _154 = _104.targetplayer
         if not _154 then
-            _194_SetText("")
-            return
-        end
-        local _144 = _154.Character
-        if _144 then
-            local _148 = _144:FindFirstChildOfClass("Humanoid")
-            local isKnocked = _180(_154)
-            local isProtected = _178(_154)
-            if _148 and _148.Health > 0 and not isKnocked and not isProtected then
-                if not isKnocked and _104.lasthealth[_154] then
-                    local _196 = _104.lasthealth[_154]
-                    if _148.Health < _196 then
-                        local _now = tick()
-                        _104._hitSoundCooldown = _104._hitSoundCooldown or {}
-                        local _lastPlay = _104._hitSoundCooldown[_154]
-                        if not _lastPlay or (_now - _lastPlay) > 0.08 then
-                            _104._hitSoundCooldown[_154] = _now
-                            PlayHitSound()
+            newText = ""
+        else
+            local _144 = _154.Character
+            if _144 then
+                local _148 = _144:FindFirstChildOfClass("Humanoid")
+                local isKnocked = _180(_154)
+                local isProtected = _178(_154)
+                
+                if _148 and _148.Health > 0 and not isKnocked and not isProtected then
+                    if not isKnocked and _104.lasthealth[_154] then
+                        local _196 = _104.lasthealth[_154]
+                        if _148.Health < _196 then
+                            local _now = tick()
+                            _104._hitSoundCooldown = _104._hitSoundCooldown or {}
+                            local _lastPlay = _104._hitSoundCooldown[_154]
+                            if not _lastPlay or (_now - _lastPlay) > 0.08 then
+                                _104._hitSoundCooldown[_154] = _now
+                                PlayHitSound()
+                            end
                         end
                     end
-                end
-                _104.lasthealth[_154] = _148.Health
+                    _104.lasthealth[_154] = _148.Health
 
-                local c = _194_GetCache(_154)
-                local _armor = 0
-                if c.armor and c.armor:IsA("NumberValue") then
-                    _armor = math.floor(c.armor.Value)
-                elseif c.armor and c.armor:IsA("IntValue") then
-                    _armor = c.armor.Value
-                end
+                    local c = _194_GetCache(_154)
+                    local _armor = 0
+                    if c.armor and c.armor:IsA("NumberValue") then
+                        _armor = math.floor(c.armor.Value)
+                    elseif c.armor and c.armor:IsA("IntValue") then
+                        _armor = c.armor.Value
+                    end
 
-                if c.dead and c.dead.Value == true then
+                    if c.dead and c.dead.Value == true then
+                        _104._killFiredFor = _104._killFiredFor or {}
+                        if not _104._killFiredFor[_154.UserId] then
+                            _104._killFiredFor[_154.UserId] = true
+                            PlayKillSound()
+                        end
+                    end
+
+                    local curHp = math.floor(_148.Health)
+                    local curMax = math.floor(_148.MaxHealth)
+                    
+                    newText = string.format("%s  %.0f/%.0f  |  %d ARMOR",
+                        _154.DisplayName, curHp, curMax, _armor)
+                else
+                    newText = _154.DisplayName .. " (Knocked wait...)"
+                    _104.lasthealth[_154] = nil
+                    _104.wasknocked[_154] = nil
+                end
+            else
+                newText = _154.DisplayName .. " (no char)"
+                _104.lasthealth[_154] = nil
+                _104.wasknocked[_154] = nil
+                if _154 then
                     _104._killFiredFor = _104._killFiredFor or {}
                     if not _104._killFiredFor[_154.UserId] then
                         _104._killFiredFor[_154.UserId] = true
                         PlayKillSound()
                     end
                 end
-
-                local curHp = math.floor(_148.Health)
-                local curMax = math.floor(_148.MaxHealth)
-                if _104._tiKey ~= _154 or _104._tiHp ~= curHp or _104._tiMax ~= curMax or _104._tiArmor ~= _armor then
-                    _104._tiKey = _154
-                    _104._tiHp = curHp
-                    _104._tiMax = curMax
-                    _104._tiArmor = _armor
-                    _194_SetText(string.format("%s  %.0f/%.0f  |  %d ARMOR",
-                        _154.DisplayName, curHp, curMax, _armor))
-                end
-            else
-                _194_SetText(_154.DisplayName .. " (Knocked wait...)")
-                _104.lasthealth[_154] = nil
-                _104.wasknocked[_154] = nil
-            end
-        else
-            _194_SetText(_154.DisplayName .. " (no char)")
-            _104.lasthealth[_154] = nil
-            _104.wasknocked[_154] = nil
-            if _154 then
-                _104._killFiredFor = _104._killFiredFor or {}
-                if not _104._killFiredFor[_154.UserId] then
-                    _104._killFiredFor[_154.UserId] = true
-                    PlayKillSound()
-                end
             end
         end
-    else
-        _194_SetText("")
+    end
+
+    if _194_LastText ~= newText then
+        _194_LastText = newText
+        _194_SetText(newText)
     end
 end
 
@@ -24287,19 +24295,6 @@ do
         StatusHud.visible = false
     end
 
-    -- useless now / keepin cause im lazy
-    --[[ function StatusHud_getPing()
-        local net = Stats_S:FindFirstChild("Network")
-        if not net then return nil end
-        local ssi = net:FindFirstChild("ServerStatsItem")
-        if not ssi then return nil end
-        local dp = ssi:FindFirstChild("Data Ping")
-        if not dp then return nil end
-        local ok, v = pcall(function() return dp:GetValue() end)
-        if ok and type(v) == "number" then return math.floor(v) end
-        return nil
-    end ]]--
-
     function StatusHud_getTargetStatus(target)
         if not target or not target.Parent then
             return "N/A", "N/A"
@@ -24323,17 +24318,27 @@ do
     function StatusHud_getRagebotStatus()
         if not OrbitEnabled then return "N/A" end
         if Disengaging then return "Disengaging" end
+        
+        local hasTarget = _104 and _104.targetplayer and _104.targetplayer.Parent and _104.targetplayer.Character
+        
         if IdleState == "hiding" then
             if IdleReason == "spam"   then return "Idle Spam (Void)" end
             if IdleReason == "ko"     then return "Idle K.O (Void)" end
             if IdleReason == "reload" then return "Idle Reload (Void)" end
             return "Idling (Void)"
         end
-        if IdleSpamEnabled and IdleSpamState == "strafing" then return "Strafing" end
-        if IdleSpamEnabled and IdleSpamState == "idling"   then return "Idle Spam" end
+        
+        if IdleSpamEnabled and IdleSpamState == "strafing" and hasTarget then 
+            return "Strafing" 
+        end
+        if IdleSpamEnabled and IdleSpamState == "idling" then 
+            return "Idle Spam" 
+        end
         if stomping then return "Stomping" end
-        if EngagementActive then return "Strafing" end
-        return "On"
+        if EngagementActive and hasTarget then 
+            return "Strafing" 
+        end
+        return "On (No Target)"
     end
 
     function StatusHud_isToggleOn(key)
