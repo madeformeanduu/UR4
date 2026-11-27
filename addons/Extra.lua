@@ -718,10 +718,6 @@ function Library:AddToRegistry(Instance, Properties, IsHud)
 end;
 
 
-function Library:AddTransparencyRoot(Instance)
-    Library.TransparencyCache[Instance] = true;
-end;
-
 function Library:RemoveFromRegistry(Instance)
     local Data = Library.RegistryMap[Instance];
 
@@ -7617,8 +7613,7 @@ function Library:CreateESPPreview(Config)
         Parent = ScreenGui;
     });
 
-    -- from now on everything registered inside the preview follows Library.ColorTransparency
-    Library:AddTransparencyRoot(Outer);
+    
 
     local Inner = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
@@ -8639,3 +8634,4 @@ end;
 Library.Directory = "spotifyforRawr"
 getgenv().Library = Library
 return Library
+
