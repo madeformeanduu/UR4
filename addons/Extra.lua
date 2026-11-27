@@ -7595,6 +7595,24 @@ function Library:CreateESPPreview(Config)
 
             MarinESP       = false;
 
+            ChinaHat       = false;
+            ChinaHatColor1 = Color3.fromRGB(255, 0, 0);
+            ChinaHatColor2 = Color3.fromRGB(0, 255, 0);
+            ChinaHatColor3 = Color3.fromRGB(0, 0, 255);
+            ChinaHatColor4 = Color3.fromRGB(255, 255, 0);
+
+            Halo           = false;
+            HaloColor1     = Color3.fromRGB(255, 215, 0);
+            HaloColor2     = Color3.fromRGB(255, 255, 150);
+            HaloColor3     = Color3.fromRGB(218, 165, 32);
+            HaloColor4     = Color3.fromRGB(255, 255, 255);
+
+            MagicCircle    = false;
+            MagicCircleColor1 = Color3.fromRGB(255, 255, 255);
+            MagicCircleColor2 = Color3.fromRGB(190, 215, 255);
+
+            MarinESP       = false;
+
             AutoRotate     = Config.AutoRotate == true; -- off by default so the model faces you
             RotationSpeed  = 0.6;           -- radians per second
             ZoomStep       = 0.12;
@@ -7963,6 +7981,95 @@ function Library:CreateESPPreview(Config)
         { 'Head', 'Torso' }, { 'Torso', 'Left Arm' }, { 'Torso', 'Right Arm' },
         { 'Torso', 'Left Leg' }, { 'Torso', 'Right Leg' },
     };
+
+    -- china hat visual (animated cone above head)
+    local ChinaHatFrame = Library:Create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 1);
+        BackgroundTransparency = 1;
+        Size = UDim2.fromOffset(100, 50);
+        Visible = false;
+        ZIndex = 11;
+        Parent = Overlay;
+    });
+    
+    local ChinaHatLines = {};
+    for i = 1, 25 do
+        local line = Library:Create('Frame', {
+            AnchorPoint = Vector2.new(0.5, 1);
+            BackgroundColor3 = Color3.new(1, 1, 1);
+            BorderSizePixel = 0;
+            Size = UDim2.fromOffset(2, 25);
+            Visible = false;
+            ZIndex = 11;
+            Parent = ChinaHatFrame;
+        });
+        table.insert(ChinaHatLines, line);
+    end;
+
+    -- halo visual (ring above head with glow)
+    local HaloFrame = Library:Create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 0.5);
+        BackgroundTransparency = 1;
+        Size = UDim2.fromOffset(70, 70);
+        Visible = false;
+        ZIndex = 11;
+        Parent = Overlay;
+    });
+
+    local HaloCircles = {};
+    for i = 1, 5 do
+        local circle = Library:Create('Frame', {
+            AnchorPoint = Vector2.new(0.5, 0.5);
+            Position = UDim2.fromScale(0.5, 0.5);
+            BackgroundColor3 = Color3.fromRGB(255, 215, 0);
+            Size = UDim2.fromOffset(60 + i * 2, 10);
+            BackgroundTransparency = 0.3 + i * 0.1;
+            BorderSizePixel = 0;
+            ZIndex = 11 - i;
+            Parent = HaloFrame;
+        });
+        local corner = Library:Create('UICorner', {
+            CornerRadius = UDim.new(0.5, 0);
+            Parent = circle;
+        });
+        table.insert(HaloCircles, circle);
+    end;
+
+    -- magic circle visual (ground circle with star pattern)
+    local MagicCircleFrame = Library:Create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 1);
+        BackgroundTransparency = 1;
+        Size = UDim2.fromOffset(140, 70);
+        Visible = false;
+        ZIndex = 9;
+        Parent = Overlay;
+    });
+
+    local MagicCircleLines = {};
+    for i = 1, 16 do
+        local line = Library:Create('Frame', {
+            AnchorPoint = Vector2.new(0.5, 0.5);
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255);
+            BorderSizePixel = 0;
+            Size = UDim2.fromOffset(2, 50);
+            Visible = true;
+            ZIndex = 9;
+            Parent = MagicCircleFrame;
+        });
+        table.insert(MagicCircleLines, line);
+    end;
+
+    -- marin esp visual (image overlay)
+    local MarinImage = Library:Create('ImageLabel', {
+        AnchorPoint = Vector2.new(0.5, 0.5);
+        BackgroundTransparency = 1;
+        Image = 'rbxasset://textures/ui/GuiImagePlaceholder.png';
+        ImageColor3 = Color3.fromRGB(255, 192, 203);
+        Size = UDim2.fromOffset(80, 120);
+        Visible = false;
+        ZIndex = 8;
+        Parent = Overlay;
+    });
 
     -- china hat visual
     local ChinaHatFrame = Library:Create('Frame', {
@@ -8646,6 +8753,132 @@ function Library:CreateESPPreview(Config)
         if Settings.ChinaHat then
             local Head = Model and Model:FindFirstChild('Head');
             if Head then
+                local HeadTop = Project(CamCF, Head.Position + Vector3.new(0, 2.5, 0));
+                if HeadTop then
+                    ChinaHatFrame.Position = UDim2.fromOffset(HeadTop.X, HeadTop.Y);
+                    ChinaHatFrame.Visible = true;
+                    
+                    -- Animate rotating hat with 4 colors
+                    local time = Now * 0.2;
+                    local fullCircle = math.pi * 2;
+                    for i, line in ipairs(ChinaHatLines) do
+                        local progress = (i - 1) / 25;
+                        local angle = progress * fullCircle;
+                        local radius = 50;
+                        local x = 50 + math.cos(angle + time) * radius * 0.8;
+                        local y = 50;
+                        line.Position = UDim2.fromOffset(x, y);
+                        line.Rotation = math.deg(angle);
+                        
+                        -- Cycle through 4 colors
+                        local s = (progress + time * 0.2) % 1;
+                        local c1 = Col(Settings.ChinaHatColor1, Color3.fromRGB(255, 0, 0));
+                        local c2 = Col(Settings.ChinaHatColor2, Color3.fromRGB(0, 255, 0));
+                        local c3 = Col(Settings.ChinaHatColor3, Color3.fromRGB(0, 0, 255));
+                        local c4 = Col(Settings.ChinaHatColor4, Color3.fromRGB(255, 255, 0));
+                        if s < 0.25 then
+                            line.BackgroundColor3 = c1:Lerp(c2, s / 0.25);
+                        elseif s < 0.5 then
+                            line.BackgroundColor3 = c2:Lerp(c3, (s - 0.25) / 0.25);
+                        elseif s < 0.75 then
+                            line.BackgroundColor3 = c3:Lerp(c4, (s - 0.5) / 0.25);
+                        else
+                            line.BackgroundColor3 = c4:Lerp(c1, (s - 0.75) / 0.25);
+                        end;
+                        line.Visible = true;
+                    end;
+                else
+                    ChinaHatFrame.Visible = false;
+                end;
+            else
+                ChinaHatFrame.Visible = false;
+            end;
+        else
+            ChinaHatFrame.Visible = false;
+        end;
+
+        -- halo rendering
+        if Settings.Halo then
+            local Head = Model and Model:FindFirstChild('Head');
+            if Head then
+                local HaloPos = Project(CamCF, Head.Position + Vector3.new(0, 1.8, 0));
+                if HaloPos then
+                    HaloFrame.Position = UDim2.fromOffset(HaloPos.X, HaloPos.Y);
+                    HaloFrame.Visible = true;
+                    
+                    -- Animate shimmer/glow effect
+                    for i, circle in ipairs(HaloCircles) do
+                        local shimmer = 0.3 + 0.2 * math.sin(Now * 4 + i * 0.5);
+                        circle.BackgroundTransparency = shimmer + i * 0.1;
+                        circle.BackgroundColor3 = Col(Settings.HaloColor1, Color3.fromRGB(255, 215, 0));
+                    end;
+                else
+                    HaloFrame.Visible = false;
+                end;
+            else
+                HaloFrame.Visible = false;
+            end;
+        else
+            HaloFrame.Visible = false;
+        end;
+
+        -- magic circle rendering
+        if Settings.MagicCircle then
+            local Root = Model and (Model:FindFirstChild('HumanoidRootPart') or Model:FindFirstChild('Torso'));
+            if Root then
+                local GroundPos = Project(CamCF, Root.Position - Vector3.new(0, 3, 0));
+                if GroundPos then
+                    MagicCircleFrame.Position = UDim2.fromOffset(GroundPos.X, GroundPos.Y);
+                    MagicCircleFrame.Visible = true;
+                    
+                    -- Animate rotating star pattern
+                    local time = Now * 0.35;
+                    local centerX, centerY = 70, 35;
+                    local points = 8;
+                    local skip = 3;
+                    for i, line in ipairs(MagicCircleLines) do
+                        local progress = (i - 1) / 16;
+                        local angle = time + progress * math.pi * 2;
+                        local radius = (i % 2 == 0) and 60 or 40;
+                        local x = centerX + math.cos(angle) * radius * 0.8;
+                        local y = centerY + math.sin(angle) * radius * 0.3;
+                        line.Position = UDim2.fromOffset(x, y);
+                        line.Rotation = math.deg(angle + math.pi / 2);
+                        line.BackgroundColor3 = Col(Settings.MagicCircleColor1, Color3.fromRGB(255, 255, 255));
+                        line.Visible = true;
+                    end;
+                else
+                    MagicCircleFrame.Visible = false;
+                end;
+            else
+                MagicCircleFrame.Visible = false;
+            end;
+        else
+            MagicCircleFrame.Visible = false;
+        end;
+
+        -- marin esp rendering
+        if Settings.MarinESP then
+            local Root = Model and (Model:FindFirstChild('HumanoidRootPart') or Model:FindFirstChild('Torso'));
+            if Root then
+                local MarinPos = Project(CamCF, Root.Position);
+                if MarinPos then
+                    MarinImage.Position = UDim2.fromOffset(MarinPos.X, MarinPos.Y);
+                    MarinImage.Visible = true;
+                else
+                    MarinImage.Visible = false;
+                end;
+            else
+                MarinImage.Visible = false;
+            end;
+        else
+            MarinImage.Visible = false;
+        end;
+
+        -- china hat rendering
+        if Settings.ChinaHat then
+            local Head = Model and Model:FindFirstChild('Head');
+            if Head then
                 local HeadTop = Project(CamCF, Head.Position + Vector3.new(0, 1.5, 0));
                 if HeadTop then
                     ChinaHatFrame.Position = UDim2.fromOffset(HeadTop.X, HeadTop.Y);
@@ -8871,4 +9104,3 @@ end;
 Library.Directory = "spotifyforRawr"
 getgenv().Library = Library
 return Library
-
