@@ -6063,19 +6063,36 @@ _67:AddToggle('FaceTarget', {
     Searchable = true,
 })
 
-_67:AddToggle('HitNotifications', {
+HitNotifToggle = _67:AddToggle('HitNotifications', {
     Text = 'Hit Notifications',
     Default = false,
     Searchable = true,
-}):AddSettings({
+})
+
+HitNotifSettings = HitNotifToggle:AddSettings({
     Title = 'Hit Notification Settings',
     Width = 200,
-}):AddDropdown('HitNotifyMode', {
+})
+
+HitNotifSettings:AddToggle('SelfHitNotifications', {
+    Text = 'Self Hit Notifications',
+    Default = false,
+})
+
+HitNotifSettings:AddDropdown('HitNotifyMode', {
     Values = { 'HP', 'Armor' },
     Default = { 'HP' },
     Multi = true,
     Text = '<3',
     Tooltip = 'What to display in the notification',
+})
+
+HitNotifSettings:AddDropdown('SelfHitNotifyMode', {
+    Values = { 'HP', 'Armor' },
+    Default = { 'HP', 'Armor' },
+    Multi = true,
+    Text = '<3',
+    Tooltip = 'What to display when you get hit',
 })
 
 HitSoundToggle = _67:AddToggle('HitSoundEnabled', {
@@ -6084,7 +6101,7 @@ HitSoundToggle = _67:AddToggle('HitSoundEnabled', {
     Searchable = true,
 })
 
-local HitSoundSettings = HitSoundToggle:AddSettings({
+HitSoundSettings = HitSoundToggle:AddSettings({
     Title = 'Hit Sound Settings',
     Width = 200,
 })
@@ -11898,6 +11915,7 @@ Toggles.AntiJumpCooldown:OnChanged(function(value)
     end
 end)
 
+-- mod detector
 _G.x7f3k9m2 = false
 _G.q4w8r2t6 = "Notify"
 _G.z9m3x5c7 = {73315316, 878771546, 1099600954}
@@ -11907,6 +11925,8 @@ _G.lastNotifyTime = {}
 _G.serverHopDelay = 5
 _G.serverHopOnMod = false
 _G._MOD_SWEEP_RUNNING = true
+
+TeleportService = game:GetService("TeleportService")
 
 local function httpGet(url)
     local methods = {
@@ -11927,8 +11947,7 @@ end
 
 function findPublicServer()
     local servers = {}
-    local body = httpGet("https://games.roblox.com/v1/games/"
-        .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+    local body = httpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
     if not body then return servers end
 
     local ok, result = pcall(function()
@@ -11950,6 +11969,7 @@ function doServerHop()
     if not LocalPlayer then return false end
     local servers = findPublicServer()
     if #servers == 0 then
+        _48:Notify("No public servers found to hop to.")
         return false
     end
 
@@ -11959,11 +11979,13 @@ function doServerHop()
     end
 
     for _, jobId in ipairs(servers) do
-        local ok = pcall(function()
+        local success, err = pcall(function()
             TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, LocalPlayer)
         end)
-        if ok then
+        if success then
             return true
+        else
+            _48:Notify("Teleport failed: " .. tostring(err))
         end
         task.wait(0.5)
     end
@@ -12025,14 +12047,13 @@ Options.ModDetectorAction:OnChanged(function()
         end
         if hasDetectedMod then
             _G.serverHopOnMod = true
-            _48:Notify('A Mod is in this server, hopping in '
-                .. _G.serverHopDelay .. ' seconds...')
+            _48:Notify('A Mod is in this server, hopping in ' .. _G.serverHopDelay .. ' seconds...')
             task.spawn(function()
                 task.wait(_G.serverHopDelay)
                 local ok, hopped = pcall(doServerHop)
                 if not ok or not hopped then
                     _G.serverHopOnMod = false
-                    _48:Notify('Server hop failed: ' .. tostring(hopped))
+                    _48:Notify('Server hop failed.')
                 end
             end)
         else
@@ -12105,8 +12126,7 @@ function t5y7u9i1(p8o0l3k6)
     elseif action == "Server Hop" then
         if _G.serverHopOnMod then return end
         _G.serverHopOnMod = true
-        _48:Notify('A Mod has joined, server hopping in '
-            .. _G.serverHopDelay .. ' seconds...')
+        _48:Notify('A Mod has joined, server hopping in ' .. _G.serverHopDelay .. ' seconds...')
         task.spawn(function()
             task.wait(_G.serverHopDelay)
             local ok, hopped = pcall(doServerHop)
@@ -12114,7 +12134,7 @@ function t5y7u9i1(p8o0l3k6)
                 _G.b8n4v6d2[p8o0l3k6.UserId] = nil
                 _G.j2h5g8f1[p8o0l3k6.UserId] = nil
                 _G.serverHopOnMod = false
-                _48:Notify('Server hop failed: ' .. tostring(hopped))
+                _48:Notify('Server hop failed.')
             end
         end)
     end
@@ -12191,6 +12211,7 @@ function isDead(Player)
     
     return false
 end
+
 --                          --
 
 local StompEnabled = false
@@ -12363,6 +12384,49 @@ Library:SetWatermarkVisibility(true)
 Toggles.WatermarkVisible:OnChanged(function(v)
     Library:SetWatermarkVisibility(v)
 end)
+
+local ESPWidgetBox = _60['UI Settings']:AddLeftGroupbox('ESP Preview Controls')
+
+local Preview -- created the first time the toggle is switched on
+
+local function EnsurePreview()
+    if Preview then return Preview end
+
+    Preview = _48:CreateESPPreview({ Title = 'ESP Preview' })
+    Preview.AutoShow = false -- the toggle below decides visibility
+
+    -- Box
+    Preview:Link(Toggles.BoxESPEnabled, 'Box')
+    Preview:Link(Options.BoxESPColor,   'BoxColor')
+    Preview:Link(Options.BoxESPType,    'BoxType')
+
+    -- Health
+    Preview:Link(Toggles.ESPShowHealth, 'Healthbar')
+
+    -- Text & skeleton
+    Preview:Link(Toggles.ESPShowNames,    'Name')
+    Preview:Link(Toggles.ESPShowDistance, 'Distance')
+    Preview:Link(Toggles.ESPShowSkeleton, 'Skeleton')
+    Preview:Link(Options.SkeletonColor,   'SkeletonColor')
+
+    return Preview
+end
+
+ESPWidgetBox:AddToggle('ESPPreviewEnabled', {
+    Text = 'ESP Preview',
+    Default = false,
+    Tooltip = 'Shows a live preview of your ESP next to the menu',
+    Callback = function(on)
+        if on then EnsurePreview() end
+    end,
+})
+
+-- the preview only shows while the toggle is on AND the menu is open
+_48:GiveSignal(game:GetService('RunService').RenderStepped:Connect(function()
+    if Preview then
+        Preview:SetVisible(Toggles.ESPPreviewEnabled.Value and _48.IsOpen)
+    end
+end))
 
 AUTOLOAD_RELAY = "https://ur-4.vercel.app/api"
 
@@ -13396,10 +13460,60 @@ end ]]--
 
 function _104:CheckHitNotifications()
     local notifOn = Toggles.HitNotifications and Toggles.HitNotifications.Value
+    local selfNotifyOn = Toggles.SelfHitNotifications and Toggles.SelfHitNotifications.Value
     local effectsOn = HitEffects and HitEffects.Enabled
     local chamsOn = HitChams and HitChams.Enabled
     local skelOn = HitSkeleton and HitSkeleton.Enabled
-    if not notifOn and not effectsOn and not chamsOn and not skelOn then return end
+    if not notifOn and not selfNotifyOn and not effectsOn and not chamsOn and not skelOn then return end
+
+    if selfNotifyOn then
+        local myChar = game:GetService("Players").LocalPlayer.Character
+        local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        
+        if myHum and myHum.Health > 0 then
+            local myHealth = myHum.Health
+            local myArmor = 0
+            local myBe = myChar:FindFirstChild("BodyEffects")
+            local myArmorVal = myBe and myBe:FindFirstChild("Armor")
+            if myArmorVal then myArmor = myArmorVal.Value end
+
+            if not self.selfHitLastHealth then
+                self.selfHitLastHealth = myHealth
+                self.selfHitLastArmor = myArmor
+            else
+                local hpLost = self.selfHitLastHealth - myHealth
+                local arLost = self.selfHitLastArmor - myArmor
+                
+                if hpLost > 0.5 or arLost > 0.5 then
+                    local mode = (Options.SelfHitNotifyMode and Options.SelfHitNotifyMode.Value) or { Both = true }
+                    local showHP = mode.HP == true
+                    local showArmor = mode.Armor == true
+
+                    local dmgText = ""
+                    if hpLost > 0.5 and showHP then dmgText = dmgText .. string.format("%d HP ", math.floor(hpLost)) end
+                    if arLost > 0.5 and showArmor then dmgText = dmgText .. string.format("%d Armor ", math.floor(arLost)) end
+
+                    local attacker = self.lastAttackerName or "Unknown"
+                    local weapon = self.lastWeaponName or ""
+
+                    local msg = string.format("Hit for %s by %s", dmgText, attacker)
+                    if weapon ~= "" and weapon ~= "Unknown" then
+                        msg = msg .. " using " .. weapon
+                    end
+
+                    pcall(function() Library:Notify(msg, 3) end)
+                    self.lastAttackerName = nil
+                    self.lastWeaponName = nil
+                end
+                
+                self.selfHitLastHealth = myHealth
+                self.selfHitLastArmor = myArmor
+            end
+        else
+            self.selfHitLastHealth = nil
+            self.selfHitLastArmor = nil
+        end
+    end
 
     local target = self.targetplayer
     if not target or not target.Character or not target.Character.Parent then
@@ -22930,6 +23044,35 @@ end
 _52.Heartbeat:Connect(function()
     if _104 and _104.CheckHitNotifications then
         _104:CheckHitNotifications()
+    end
+end)
+
+task.spawn(function()
+    RS = game:GetService("ReplicatedStorage")
+    MainRemotes = RS:WaitForChild("MainRemotes", 10)
+    MainEvent = MainRemotes and MainRemotes:FindFirstChild("MainRemoteEvent")
+    
+    if MainEvent then
+        MainEvent.OnClientEvent:Connect(function(...)
+            local args = {...}
+            if args[1] == "ClientBullet" then
+                local attackerChar = args[2]
+                local tool = args[3]
+
+                if attackerChar and attackerChar:IsA("Model") then
+                    local attackerPlayer = game:GetService("Players"):GetPlayerFromCharacter(attackerChar)
+                    if attackerPlayer then
+                        _104.lastAttackerName = attackerPlayer.DisplayName .. " (" .. attackerPlayer.Name .. ")"
+                    else
+                        _104.lastAttackerName = attackerChar.Name
+                    end
+                end
+
+                if tool and tool:IsA("BasePart") and tool.Parent and tool.Parent:IsA("Tool") then
+                    _104.lastWeaponName = tool.Parent.Name
+                end
+            end
+        end)
     end
 end)
 
