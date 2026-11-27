@@ -5,12 +5,48 @@ local Teams = game:GetService('Teams');
 local Players = game:GetService('Players');
 local RunService = game:GetService('RunService')
 local TweenService = game:GetService('TweenService');
+local GuiService = game:GetService('GuiService');
 local RenderStepped = RunService.RenderStepped;
 local LocalPlayer = Players.LocalPlayer;
-local Mouse = LocalPlayer:GetMouse();
+local RealMouse = LocalPlayer:GetMouse();
 local HttpService = game:GetService('HttpService');
 local UserInputService = InputService;
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
+
+-- =====================================================================
+-- Mouse proxy
+-- The ScreenGui ignores the GUI inset (so things can touch the real screen
+-- edges), which means every coordinate has to be in raw screen space.
+-- Mouse.X / Mouse.Y are therefore taken from GetMouseLocation (or from the
+-- touch position on mobile) instead of the old Mouse object.
+-- =====================================================================
+local function GetMousePosition()
+    if InputService.MouseEnabled or not InputService.TouchEnabled then
+        return InputService:GetMouseLocation();
+    end;
+
+    return Vector2.new(RealMouse.X, RealMouse.Y + GuiService:GetGuiInset().Y);
+end;
+
+local Mouse = setmetatable({}, {
+    __index = function(_, Key)
+        if Key == 'X' then
+            return GetMousePosition().X;
+        elseif Key == 'Y' then
+            return GetMousePosition().Y;
+        end;
+
+        local Value = RealMouse[Key];
+
+        if type(Value) == 'function' then
+            return function(_, ...)
+                return Value(RealMouse, ...);
+            end;
+        end;
+
+        return Value;
+    end;
+});
 
 local API_BASE        = "https://ur-4.vercel.app/api"
 local LogoAssetFolder = "woodie/assets/images"
@@ -124,7 +160,7 @@ function _fetchMainlogo()
     if not ok or type(resp) ~= "table" then return nil end
     if tonumber(resp.StatusCode) ~= 200 then return nil end
     if type(resp.Body) ~= "string" or #resp.Body == 0 then return nil end
-    
+
     if resp.Body:sub(1, 1) ~= "{" then
         return resp.Body
     end
@@ -184,6 +220,8 @@ local ScreenGui = Instance.new('ScreenGui');
 ProtectGui(ScreenGui);
 
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
+ScreenGui.IgnoreGuiInset = true; -- lets notifications / widgets touch the real screen edges
+ScreenGui.ResetOnSpawn = false;
 ScreenGui.Parent = CoreGui;
 
 local function IsClick(Input)
@@ -277,7 +315,7 @@ local function GetTeamsString()
     end;
 
     table.sort(TeamList, function(str1, str2) return str1 < str2 end);
-    
+
     return TeamList;
 end;
 
@@ -367,12 +405,11 @@ function Library:MakeDraggable(Instance, Cutoff)
             end;
 
             while IsHeld(Input) do
-                Instance.Position = UDim2.new(
-                    0,
-                    Mouse.X - ObjPos.X + (Instance.Size.X.Offset * Instance.AnchorPoint.X),
-                    0,
-                    Mouse.Y - ObjPos.Y + (Instance.Size.Y.Offset * Instance.AnchorPoint.Y)
-                );
+                local View = ScreenGui.AbsoluteSize;
+                local X = Mouse.X - ObjPos.X + (Instance.AbsoluteSize.X * Instance.AnchorPoint.X);
+                local Y = Mouse.Y - ObjPos.Y + (Instance.AbsoluteSize.Y * Instance.AnchorPoint.Y);
+
+                Instance.Position = UDim2.new(0, X, 0, Y);
 
                 RenderStepped:Wait();
             end;
@@ -465,11 +502,13 @@ function Library:OnHighlight(HighlightInstance, Instance, Properties, Properties
 end;
 
 function Library:MouseIsOverOpenedFrame()
+    local MX, MY = Mouse.X, Mouse.Y;
+
     for Frame, _ in next, Library.OpenedFrames do
         local AbsPos, AbsSize = Frame.AbsolutePosition, Frame.AbsoluteSize;
 
-        if Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X
-            and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
+        if MX >= AbsPos.X and MX <= AbsPos.X + AbsSize.X
+            and MY >= AbsPos.Y and MY <= AbsPos.Y + AbsSize.Y then
 
             return true;
         end;
@@ -478,9 +517,10 @@ end;
 
 function Library:IsMouseOverFrame(Frame)
     local AbsPos, AbsSize = Frame.AbsolutePosition, Frame.AbsoluteSize;
+    local MX, MY = Mouse.X, Mouse.Y;
 
-    if Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X
-        and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
+    if MX >= AbsPos.X and MX <= AbsPos.X + AbsSize.X
+        and MY >= AbsPos.Y and MY <= AbsPos.Y + AbsSize.Y then
 
         return true;
     end;
@@ -645,9 +685,26 @@ end;
 Library.AccentColorDark = Library:GetDarkerColor(Library.AccentColor);
 
 Library.ColorTransparency = { BackgroundColor = 0; MainColor = 0; AccentColor = 0; };
-Library.TransparencyCache = {};   -- shared with the open/close fade in CreateWindow
+Library.TransparencyCache = {};   -- shared with the open/close fade in CreateWindow (and the ESP preview)
+Library.TransparencyRoots = {};   -- extra widgets (ESP preview, Spotify player) that follow the color transparency too
 Library.IsOpen = false;
 Library.WindowOuter = nil;
+
+-- registers a widget so every registered element inside it follows Library.ColorTransparency
+function Library:AddTransparencyRoot(Root)
+    Library.TransparencyRoots[Root] = true;
+
+    Root.Destroying:Connect(function()
+        Library.TransparencyRoots[Root] = nil;
+    end);
+
+    -- apply to everything that is already inside the root
+    Library:ApplyColorTransparency(Root);
+
+    for _, Desc in next, Root:GetDescendants() do
+        Library:ApplyColorTransparency(Desc);
+    end;
+end;
 
 -- sets a transparency prop and keeps the open/close fade cache in sync
 function Library:SetTransparencyProp(Inst, Prop, Value)
@@ -665,8 +722,7 @@ end;
 
 -- applies the transparency of whatever color key an instance's background is registered to
 function Library:ApplyColorTransparency(Inst)
-    local Window = Library.WindowOuter;
-    if not Window or not Inst.Parent then return end;
+    if not Inst.Parent then return end;
 
     local Reg = Library.RegistryMap[Inst];
     if not Reg then return end;
@@ -677,8 +733,23 @@ function Library:ApplyColorTransparency(Inst)
     local T = Library.ColorTransparency[Key];
     if T == nil then return end;
 
-    -- only the main window, and not the search results list (zindex 30+)
-    if not Inst:IsDescendantOf(Window) or Inst.ZIndex >= 30 then return end;
+    local Window = Library.WindowOuter;
+    local InWindow = Window ~= nil and Inst:IsDescendantOf(Window);
+    local InRoot = false;
+
+    if not InWindow then
+        for Root in next, Library.TransparencyRoots do
+            if Root.Parent and (Inst == Root or Inst:IsDescendantOf(Root)) then
+                InRoot = true;
+                break;
+            end;
+        end;
+    end;
+
+    if not InWindow and not InRoot then return end;
+
+    -- the search results list (zindex 30+) is not part of the window transparency
+    if InWindow and Inst.ZIndex >= 30 then return end;
 
     Library:SetTransparencyProp(Inst, 'BackgroundTransparency', T);
 
@@ -925,7 +996,7 @@ do
             Parent = HueSelectorOuter;
         });
 
-        local HueCursor = Library:Create('Frame', { 
+        local HueCursor = Library:Create('Frame', {
             BackgroundColor3 = Color3.new(1, 1, 1);
             AnchorPoint = Vector2.new(0, 0.5);
             BorderColor3 = Color3.new(0, 0, 0);
@@ -991,8 +1062,8 @@ do
         });
 
         local TransparencyBoxOuter, TransparencyBoxInner, TransparencyCursor;
-        
-        if Info.Transparency then 
+
+        if Info.Transparency then
             TransparencyBoxOuter = Library:Create('Frame', {
                 BorderColor3 = Color3.new(0, 0, 0);
                 Position = UDim2.fromOffset(4, 251);
@@ -1020,7 +1091,7 @@ do
                 Parent = TransparencyBoxInner;
             });
 
-            TransparencyCursor = Library:Create('Frame', { 
+            TransparencyCursor = Library:Create('Frame', {
                 BackgroundColor3 = Color3.new(1, 1, 1);
                 AnchorPoint = Vector2.new(0.5, 0);
                 BorderColor3 = Color3.new(0, 0, 0);
@@ -1130,7 +1201,7 @@ do
                     TextXAlignment = Enum.TextXAlignment.Left,
                 });
 
-                Library:OnHighlight(Button, Button, 
+                Library:OnHighlight(Button, Button,
                     { TextColor3 = 'AccentColor' },
                     { TextColor3 = 'FontColor' }
                 );
@@ -3346,17 +3417,18 @@ do
             end;
         end);
 
-        InputService.InputBegan:Connect(function(Input)
-            if IsClick(Input) then
+        Library:GiveSignal(InputService.InputBegan:Connect(function(Input)
+            if IsClick(Input) and ListOuter.Visible then
                 local AbsPos, AbsSize = ListOuter.AbsolutePosition, ListOuter.AbsoluteSize;
+                local MX, MY = Mouse.X, Mouse.Y;
 
-                if Mouse.X < AbsPos.X or Mouse.X > AbsPos.X + AbsSize.X
-                    or Mouse.Y < (AbsPos.Y - 20 - 1) or Mouse.Y > AbsPos.Y + AbsSize.Y then
+                if MX < AbsPos.X or MX > AbsPos.X + AbsSize.X
+                    or MY < (AbsPos.Y - 20 - 1) or MY > AbsPos.Y + AbsSize.Y then
 
                     Dropdown:CloseDropdown();
                 end;
             end;
-        end);
+        end));
 
         Dropdown:BuildDropdownList();
         Dropdown:Display();
@@ -3394,7 +3466,7 @@ do
             Dropdown:BuildDropdownList();
             Dropdown:Display();
         end
-        
+
         Library:AddSearchable(Groupbox, Info, DropdownOuter, 'Dropdown');
 
         Groupbox:AddBlank(Info.BlankSize or 5);
@@ -3409,7 +3481,7 @@ do
         local Depbox = {
             Dependencies = {};
         };
-        
+
         local Groupbox = self;
         local Container = Groupbox.Container;
 
@@ -3426,7 +3498,7 @@ do
             Visible = true;
             Parent = Holder;
         });
-        
+
         Depbox.ParentBox = Groupbox;
         Depbox.Holder = Holder;
 
@@ -3509,18 +3581,21 @@ end;
 --            bottomleft, bottom, bottomright
 -- (also accepts things like 'top right', 'top_right', 'tr', 'bl', 'middle'...)
 --
+-- Notifications sit flush against the screen edge of the side they use
+-- (no gap), because the ScreenGui ignores the GUI inset.
+--
 -- Library:SetNotifyPosition('topright') changes the default for all notifications.
 -- =====================================================================
 local NotifyPositions = {
-    topleft     = { Anchor = Vector2.new(0, 0);   Position = UDim2.new(0, 0, 0, 40);     Align = Enum.HorizontalAlignment.Left;   Reverse = false; };
-    top         = { Anchor = Vector2.new(0.5, 0); Position = UDim2.new(0.5, 0, 0, 40);   Align = Enum.HorizontalAlignment.Center; Reverse = false; };
-    topright    = { Anchor = Vector2.new(1, 0);   Position = UDim2.new(1, -10, 0, 40);   Align = Enum.HorizontalAlignment.Right;  Reverse = false; };
-    left        = { Anchor = Vector2.new(0, 0.5); Position = UDim2.new(0, 0, 0.5, 0);    Align = Enum.HorizontalAlignment.Left;   Reverse = false; };
+    topleft     = { Anchor = Vector2.new(0, 0);     Position = UDim2.new(0, 0, 0, 0);     Align = Enum.HorizontalAlignment.Left;   Reverse = false; };
+    top         = { Anchor = Vector2.new(0.5, 0);   Position = UDim2.new(0.5, 0, 0, 0);   Align = Enum.HorizontalAlignment.Center; Reverse = false; };
+    topright    = { Anchor = Vector2.new(1, 0);     Position = UDim2.new(1, 0, 0, 0);     Align = Enum.HorizontalAlignment.Right;  Reverse = false; };
+    left        = { Anchor = Vector2.new(0, 0.5);   Position = UDim2.new(0, 0, 0.5, 0);   Align = Enum.HorizontalAlignment.Left;   Reverse = false; };
     center      = { Anchor = Vector2.new(0.5, 0.5); Position = UDim2.new(0.5, 0, 0.5, 0); Align = Enum.HorizontalAlignment.Center; Reverse = false; };
-    right       = { Anchor = Vector2.new(1, 0.5); Position = UDim2.new(1, -10, 0.5, 0); Align = Enum.HorizontalAlignment.Right;  Reverse = false; };
-    bottomleft  = { Anchor = Vector2.new(0, 1);   Position = UDim2.new(0, 0, 1, -10);    Align = Enum.HorizontalAlignment.Left;   Reverse = true; };
-    bottom      = { Anchor = Vector2.new(0.5, 1); Position = UDim2.new(0.5, 0, 1, -10);  Align = Enum.HorizontalAlignment.Center; Reverse = true; };
-    bottomright = { Anchor = Vector2.new(1, 1);   Position = UDim2.new(1, -10, 1, -10);  Align = Enum.HorizontalAlignment.Right;  Reverse = true; };
+    right       = { Anchor = Vector2.new(1, 0.5);   Position = UDim2.new(1, 0, 0.5, 0);   Align = Enum.HorizontalAlignment.Right;  Reverse = false; };
+    bottomleft  = { Anchor = Vector2.new(0, 1);     Position = UDim2.new(0, 0, 1, 0);     Align = Enum.HorizontalAlignment.Left;   Reverse = true; };
+    bottom      = { Anchor = Vector2.new(0.5, 1);   Position = UDim2.new(0.5, 0, 1, 0);   Align = Enum.HorizontalAlignment.Center; Reverse = true; };
+    bottomright = { Anchor = Vector2.new(1, 1);     Position = UDim2.new(1, 0, 1, 0);     Align = Enum.HorizontalAlignment.Right;  Reverse = true; };
 };
 
 local NotifyAliases = {
@@ -3567,6 +3642,7 @@ function Library:GetNotificationArea(PositionName)
         AnchorPoint = Data.Anchor;
         AutomaticSize = Enum.AutomaticSize.Y;
         BackgroundTransparency = 1;
+        BorderSizePixel = 0;
         Position = Data.Position;
         Size = UDim2.new(0, 600, 0, 0);
         ZIndex = 100;
@@ -3578,6 +3654,7 @@ function Library:GetNotificationArea(PositionName)
         FillDirection = Enum.FillDirection.Vertical;
         HorizontalAlignment = Data.Align;
         SortOrder = Enum.SortOrder.LayoutOrder;
+        VerticalAlignment = Data.Reverse and Enum.VerticalAlignment.Bottom or Enum.VerticalAlignment.Top;
         Parent = Area;
     });
 
@@ -3603,8 +3680,9 @@ do
     Library.NotificationArea = Library:GetNotificationArea('topleft');
 
     local WatermarkOuter = Library:Create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 0);
         BorderColor3 = Color3.new(0, 0, 0);
-        Position = UDim2.new(0, 100, 0, -25);
+        Position = UDim2.new(0.5, 0, 0, 8);
         Size = UDim2.new(0, 213, 0, 20);
         ZIndex = 200;
         Visible = false;
@@ -3826,20 +3904,28 @@ function Library:Notify(Text, Time, Position)
         Parent = InnerFrame;
     });
 
-    local LeftColor = Library:Create('Frame', {
+    -- accent bar on the edge that faces the screen interior (left side for left/center, right side for right ones)
+    local OnRight = PositionData.Align == Enum.HorizontalAlignment.Right;
+
+    local EdgeColor = Library:Create('Frame', {
         BackgroundColor3 = Library.AccentColor;
         BorderSizePixel = 0;
-        Position = UDim2.new(0, -1, 0, -1);
-        Size = UDim2.new(0, 3, 1, 2);
+        AnchorPoint = Vector2.new(OnRight and 1 or 0, 0);
+        Position = UDim2.new(OnRight and 1 or 0, 0, 0, 0);
+        Size = UDim2.new(0, 3, 1, 0);
         ZIndex = 104;
         Parent = NotifyOuter;
     });
 
-    Library:AddToRegistry(LeftColor, {
+    Library:AddToRegistry(EdgeColor, {
         BackgroundColor3 = 'AccentColor';
     }, true);
 
-    pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, XSize + 8 + 4, 0, YSize), 'Out', 'Quad', 0.4, true);
+    -- the text sits on the other side of the bar so it never overlaps it
+    NotifyLabel.Position = UDim2.new(0, OnRight and 4 or 7, 0, 0);
+    NotifyLabel.Size = UDim2.new(1, -11, 1, 0);
+
+    pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, XSize + 8 + 8, 0, YSize), 'Out', 'Quad', 0.4, true);
 
     task.spawn(function()
         wait(tonumber(Time) or 5);
@@ -3867,7 +3953,7 @@ function Library:CreateWindow(...)
     if type(Config.TabPadding) ~= 'number' then Config.TabPadding = 0 end
     if type(Config.MenuFadeTime) ~= 'number' then Config.MenuFadeTime = 0.2 end
 
-    if typeof(Config.Position) ~= 'UDim2' then Config.Position = UDim2.fromOffset(175, 50) end
+    if typeof(Config.Position) ~= 'UDim2' then Config.Position = UDim2.fromOffset(175, LogoAsset and 90 or 50) end
     if typeof(Config.Size) ~= 'UDim2' then Config.Size = UDim2.fromOffset(550, 600) end
 
     if Config.Center then
@@ -3908,19 +3994,18 @@ function Library:CreateWindow(...)
         BorderColor3 = 'AccentColor';
     });
 
-    local LOGO_WIDTH  = 300
-    local LOGO_HEIGHT = 100
-    local LogoAsset = EnsureLogoAsset()
     local TopOffset = 0
+    local WindowLogoAsset = LogoAsset or EnsureLogoAsset()
 
-    if LogoAsset then
+    if WindowLogoAsset then
+        -- logo sits on top of the window, right aligned (300x100 source image -> 3:1)
         Library:Create('ImageLabel', {
             Name = "WindowLogo";
             BackgroundTransparency = 1;
             AnchorPoint = Vector2.new(1, 1);
             Position = UDim2.new(1, 0, 0, -2);
-            Size = UDim2.new(0, 200, 0, 150);
-            Image = LogoAsset;
+            Size = UDim2.new(0, 200, 0, 67);
+            Image = WindowLogoAsset;
             ScaleType = Enum.ScaleType.Fit;
             ZIndex = 10;
             Parent = Inner;
@@ -3989,7 +4074,7 @@ function Library:CreateWindow(...)
         ZIndex = 2;
         Parent = MainSectionInner;
     });
-    
+
 
     Library:AddToRegistry(TabContainer, {
         BackgroundColor3 = 'MainColor';
@@ -4502,7 +4587,7 @@ function Library:CreateWindow(...)
                 SortOrder = Enum.SortOrder.LayoutOrder;
                 Parent = TabboxButtons;
             });
-            
+
             function Tabbox:AddTab(Name)
                 local Tab = {};
                 Tab.WindowTab = OwnerTab;
@@ -4675,6 +4760,66 @@ function Library:CreateWindow(...)
     local Toggled = false;
     local Fading = false;
 
+    -- custom cursor (a small accent colored arrow). One loop at a time, restored when the menu closes.
+    local function RunCursor()
+        Library.CursorToken = (Library.CursorToken or 0) + 1;
+        local Token = Library.CursorToken;
+
+        task.spawn(function()
+            local State = Library.RealMouseIcon;
+            if State == nil then
+                State = InputService.MouseIconEnabled;
+                Library.RealMouseIcon = State;
+            end;
+
+            local OkA, Cursor = pcall(Drawing.new, 'Triangle');
+            local OkB, CursorOutline = pcall(Drawing.new, 'Triangle');
+
+            if not (OkA and OkB) then
+                if OkA then pcall(function() Cursor:Remove() end) end;
+                if OkB then pcall(function() CursorOutline:Remove() end) end;
+                return;
+            end;
+
+            Cursor.Thickness = 1;
+            Cursor.Filled = true;
+            Cursor.Visible = true;
+            Cursor.ZIndex = 9999;
+
+            CursorOutline.Thickness = 1;
+            CursorOutline.Filled = false;
+            CursorOutline.Color = Color3.new(0, 0, 0);
+            CursorOutline.Visible = true;
+            CursorOutline.ZIndex = 10000;
+
+            while Toggled and Library.CursorToken == Token and ScreenGui.Parent do
+                InputService.MouseIconEnabled = false;
+
+                local mPos = InputService:GetMouseLocation();
+
+                Cursor.Color = Library.AccentColor;
+
+                Cursor.PointA = Vector2.new(mPos.X, mPos.Y);
+                Cursor.PointB = Vector2.new(mPos.X + 16, mPos.Y + 6);
+                Cursor.PointC = Vector2.new(mPos.X + 6, mPos.Y + 16);
+
+                CursorOutline.PointA = Cursor.PointA;
+                CursorOutline.PointB = Cursor.PointB;
+                CursorOutline.PointC = Cursor.PointC;
+
+                RenderStepped:Wait();
+            end;
+
+            pcall(function() Cursor:Remove() end);
+            pcall(function() CursorOutline:Remove() end);
+
+            if Library.CursorToken == Token then
+                InputService.MouseIconEnabled = State;
+                Library.RealMouseIcon = nil;
+            end;
+        end);
+    end;
+
     function Library:Toggle()
         if Fading then
             return;
@@ -4696,46 +4841,9 @@ function Library:CreateWindow(...)
             Outer.Visible = true;
         end;
 
-        -- [TOUCH] the fake triangle cursor is only for mouse devices
+        -- [TOUCH] the fake cursor is only for mouse devices
         if Toggled and (InputService.MouseEnabled or not InputService.TouchEnabled) then
-            task.spawn(function()
-                -- TODO: add cursor fade?
-                local State = InputService.MouseIconEnabled;
-
-                local Cursor = Drawing.new('Triangle');
-                Cursor.Thickness = 1;
-                Cursor.Filled = true;
-                Cursor.Visible = true;
-
-                local CursorOutline = Drawing.new('Triangle');
-                CursorOutline.Thickness = 1;
-                CursorOutline.Filled = false;
-                CursorOutline.Color = Color3.new(0, 0, 0);
-                CursorOutline.Visible = true;
-
-                while Toggled and ScreenGui.Parent do
-                    InputService.MouseIconEnabled = false;
-
-                    local mPos = InputService:GetMouseLocation();
-
-                    Cursor.Color = Library.AccentColor;
-
-                    Cursor.PointA = Vector2.new(mPos.X, mPos.Y);
-                    Cursor.PointB = Vector2.new(mPos.X + 16, mPos.Y + 6);
-                    Cursor.PointC = Vector2.new(mPos.X + 6, mPos.Y + 16);
-
-                    CursorOutline.PointA = Cursor.PointA;
-                    CursorOutline.PointB = Cursor.PointB;
-                    CursorOutline.PointC = Cursor.PointC;
-
-                    RenderStepped:Wait();
-                end;
-
-                InputService.MouseIconEnabled = State;
-
-                Cursor:Remove();
-                CursorOutline:Remove();
-            end);
+            RunCursor();
         end;
 
         for _, Desc in next, Outer:GetDescendants() do
@@ -4837,277 +4945,6 @@ end;
 Players.PlayerAdded:Connect(OnPlayerChange);
 Players.PlayerRemoving:Connect(OnPlayerChange);
 
-function Library:CreateESPPreview()
-    local Preview = {}
-    local Connections = {}
-    local Destroyed = false
-
-    local Cfg = {
-        Enabled = false,
-        SpinSpeed = 40,
-        Zoom = 8,
-        Pitch = 6,
-        Yaw = 25,
-    }
-
-    local Clone = nil
-    local Target = nil
-    local Orbit = false
-    local Hover = false
-    local LastCheck = 0
-    local CharConn = nil
-
-    local function Connect(signal, callback)
-        local conn = signal:Connect(callback)
-        table.insert(Connections, conn)
-        return conn
-    end
-
-    -- Use the Library's New/Create wrapper to match the theme
-    local function New(class, props, regProps)
-        local inst = Library:Create(class, props)
-        if regProps then Library:AddToRegistry(inst, regProps) end
-        return inst
-    end
-
-    local function ClearClone()
-        if Clone then pcall(function() Clone:Destroy() end) end
-        Clone = nil
-    end
-
-    local function ValidCandidate(p)
-        if p == LocalPlayer then return false end
-        local char = p.Character
-        if not char then return false end
-        if not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Head") then return false end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        return hum ~= nil and hum.Health > 0
-    end
-
-    local function BuildClone(plr)
-        ClearClone()
-        local char = plr and plr.Character
-        if not char then return false end
-
-        local ok, c = pcall(function()
-            local old = char.Archivable
-            char.Archivable = true
-            local cl = char:Clone()
-            char.Archivable = old
-            return cl
-        end)
-        if not ok or not c then return false end
-
-        local hrp = c:FindFirstChild("HumanoidRootPart")
-        if not hrp or not c:FindFirstChild("Head") then
-            c:Destroy()
-            return false
-        end
-
-        for _, d in ipairs(c:GetDescendants()) do
-            if d:IsA("BaseScript") or d:IsA("ModuleScript") or d:IsA("Animator")
-                or d:IsA("ForceField") or d:IsA("Highlight") or d:IsA("BillboardGui")
-                or d:IsA("SurfaceGui") or d:IsA("ParticleEmitter") or d:IsA("Trail")
-                or d:IsA("Beam") or d:IsA("Sound") or d:IsA("Light") then
-                pcall(function() d:Destroy() end)
-            elseif d:IsA("BasePart") then
-                d.Anchored = true
-                d.CanCollide = false
-                d.CanQuery = false
-                d.CanTouch = false
-            end
-        end
-
-        local hum = c:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-            hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
-        end
-
-        c.Name = "\0"
-        c.PrimaryPart = hrp
-        c.Parent = Preview.World
-        c:PivotTo(CFrame.new(0, 0, 0))
-
-        Clone = c
-        return true
-    end
-
-    local function SetTarget(plr)
-        if CharConn then pcall(function() CharConn:Disconnect() end) CharConn = nil end
-        Target = plr
-        if not plr then ClearClone() return false end
-        local ok = BuildClone(plr)
-        CharConn = plr.CharacterAdded:Connect(function()
-            task.wait(0.8)
-            if Target == plr then BuildClone(plr) end
-        end)
-        return ok
-    end
-
-    function Preview:Reroll()
-        local list = {}
-        for _, p in ipairs(Players:GetPlayers()) do
-            if ValidCandidate(p) then list[#list + 1] = p end
-        end
-        if #list == 0 then
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p == LocalPlayer and p.Character then list[#list + 1] = p end
-            end
-        end
-        for _ = 1, math.min(#list, 6) do
-            local pick = table.remove(list, math.random(#list))
-            if SetTarget(pick) then return pick end
-        end
-        if LocalPlayer.Character and SetTarget(LocalPlayer) then return LocalPlayer end
-        return nil
-    end
-
-    -- UI Setup
-    Preview.Panel = New("Frame", {
-        Name = "\0ESPPreview",
-        BackgroundColor3 = Library.BackgroundColor,
-        BorderColor3 = Library.OutlineColor,
-        BorderMode = Enum.BorderMode.Inset,
-        Position = UDim2.new(0, 30, 0, 250),
-        Size = UDim2.fromOffset(200, 260),
-        Visible = false,
-        ZIndex = 50,
-    }, { BackgroundColor3 = "BackgroundColor"; BorderColor3 = "OutlineColor" })
-    Library:MakeDraggable(Preview.Panel, 24)
-
-    Preview.Accent = New("Frame", {
-        BackgroundColor3 = Library.AccentColor,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 2),
-        ZIndex = 51,
-    }, { BackgroundColor3 = "AccentColor" })
-
-    Preview.Title = New("TextLabel", {
-        BackgroundTransparency = 1,
-        Font = Library.Font,
-        Text = "ESP Preview",
-        TextSize = 14,
-        TextColor3 = Library.FontColor,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Position = UDim2.fromOffset(6, 4),
-        Size = UDim2.new(1, -12, 0, 16),
-        ZIndex = 52,
-    }, { TextColor3 = "FontColor" })
-
-    Preview.Viewport = New("ViewportFrame", {
-        BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(4, 24),
-        Size = UDim2.new(1, -8, 1, -48),
-        Ambient = Color3.fromRGB(165, 165, 165),
-        LightColor = Color3.fromRGB(255, 255, 255),
-        LightDirection = Vector3.new(-1, -2, -1),
-        ZIndex = 52,
-    })
-
-    Preview.World = Instance.new("WorldModel")
-    Preview.World.Parent = Preview.Viewport
-
-    Preview.Camera = Instance.new("Camera")
-    Preview.Camera.FieldOfView = 50
-    Preview.Camera.Parent = Preview.Viewport
-    Preview.Viewport.CurrentCamera = Preview.Camera
-
-    Preview.TargetName = New("TextLabel", {
-        BackgroundTransparency = 1,
-        Font = Library.Font,
-        Text = "",
-        TextSize = 13,
-        TextColor3 = Library.FontColor,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Position = UDim2.fromOffset(6, 6),
-        Size = UDim2.new(1, -12, 0, 14),
-        ZIndex = 54,
-    }, { TextColor3 = "FontColor" })
-
-    Preview.RerollBtn = New("TextButton", {
-        AnchorPoint = Vector2.new(0, 1),
-        Position = UDim2.new(0, 4, 1, -4),
-        Size = UDim2.new(1, -8, 0, 20),
-        BackgroundColor3 = Library.MainColor,
-        BorderColor3 = Library.OutlineColor,
-        BorderMode = Enum.BorderMode.Inset,
-        AutoButtonColor = false,
-        Font = Library.Font,
-        Text = "Reroll",
-        TextSize = 13,
-        TextColor3 = Library.FontColor,
-        ZIndex = 53,
-    }, { BackgroundColor3 = "MainColor"; TextColor3 = "FontColor" })
-
-    Connect(Preview.RerollBtn.MouseButton1Click, function() Preview:Reroll() end)
-
-    Preview.Hit = New("TextButton", {
-        Size = UDim2.fromScale(1, 1),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        Text = "",
-        AutoButtonColor = false,
-        ZIndex = 55,
-    })
-
-    Connect(Preview.Hit.MouseEnter, function() Hover = true end)
-    Connect(Preview.Hit.MouseLeave, function() Hover = false end)
-    Connect(Preview.Hit.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then Orbit = true end
-    end)
-    Connect(UserInputService.InputEnded, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then Orbit = false end
-    end)
-    Connect(UserInputService.InputChanged, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement and Orbit then
-            Cfg.Yaw = (Cfg.Yaw + input.Delta.X * 0.6) % 360
-            Cfg.Pitch = math.clamp(Cfg.Pitch + input.Delta.Y * 0.3, -15, 60)
-        elseif input.UserInputType == Enum.UserInputType.MouseWheel and Hover then
-            Cfg.Zoom = math.clamp(Cfg.Zoom - input.Position.Z * 0.8, 3, 22)
-        end
-    end)
-
-    Connect(RunService.RenderStepped, function(dt)
-        if Destroyed or not Preview.Panel.Visible then return end
-
-        Cfg.Yaw = (Cfg.Yaw + Cfg.SpinSpeed * dt) % 360
-        if Clone and Clone.Parent then
-            Clone:PivotTo(CFrame.Angles(0, math.rad(Cfg.Yaw), 0))
-        end
-
-        local focus = Vector3.new(0, -0.1, 0)
-        local off = CFrame.Angles(-math.rad(Cfg.Pitch), 0, 0):VectorToWorldSpace(Vector3.new(0, 0, Cfg.Zoom))
-        Preview.Camera.CFrame = CFrame.lookAt(focus + off, focus)
-
-        if os.clock() - LastCheck >= 1 then
-            LastCheck = os.clock()
-            if not Target or Target.Parent ~= Players or (Target ~= LocalPlayer and not ValidCandidate(Target)) then
-                Preview:Reroll()
-            end
-        end
-        Preview.TargetName.Text = Target and Target.Name or "none"
-    end)
-
-    function Preview:SetVisibility(Bool)
-        Cfg.Enabled = Bool and true or false
-        Preview.Panel.Visible = Cfg.Enabled
-        if Cfg.Enabled and not Clone then Preview:Reroll() end
-    end
-
-    function Preview:Destroy()
-        if Destroyed then return end
-        Destroyed = true
-        for _, C in next, Connections do pcall(function() C:Disconnect() end) end
-        if CharConn then pcall(function() CharConn:Disconnect() end) end
-        ClearClone()
-        Frame:Destroy() -- Note: Frame should be Preview.Panel, but this follows your structure
-    end
-
-    Preview:Reroll()
-    return Preview
-end
-
 function Library:CreateSpotifyPlayer()
     local Spotify = {}
     local InputService      = UserInputService
@@ -5132,6 +4969,9 @@ function Library:CreateSpotifyPlayer()
 
     local ThemeInactiveText = Color3.fromRGB(180, 180, 180)
     local SKIP_ASSET_ID = "rbxassetid://9607545497"
+
+    -- everything inside the player is lifted by this much so it stays above the main window (Global ZIndexBehavior)
+    local PLAYER_Z_OFFSET = 51
 
     local Connections = {}
     local Destroyed = false
@@ -5282,9 +5122,8 @@ function Library:CreateSpotifyPlayer()
         })
     end
 
-    if Library.ScreenGui and Library.ScreenGui.ZIndexBehavior == Enum.ZIndexBehavior.Global then
-        Library.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    end
+    -- NOTE: the old code switched the whole ScreenGui to Sibling ZIndexBehavior here, which broke
+    -- the layering (and click order) of the main menu. We stay on Global and offset the player's ZIndexes instead.
 
     Items["SpotifyPlayer"] = New("Frame", {
         Name="\0", Parent=Library.ScreenGui,
@@ -5296,6 +5135,9 @@ function Library:CreateSpotifyPlayer()
         ZIndex = 50,
     }, { BackgroundColor3='MainColor'; BorderColor3='Black' })
     Library:MakeDraggable(Items["SpotifyPlayer"], 24)
+
+    -- the player follows Library.ColorTransparency just like the main window
+    Library:AddTransparencyRoot(Items["SpotifyPlayer"])
 
     Items["InnerBacking"] = New("Frame", {
         Name="\0", Parent=Items["SpotifyPlayer"],
@@ -5826,10 +5668,6 @@ function Library:CreateSpotifyPlayer()
     end
     SetVolumeUI(50)
 
-    if Icons["Previous"] then
-        Icons["Previous"].Rotation = 180
-    end
-
     Items["ExpandButton"] = New("ImageButton", {
         Name="\0", Parent=Items["SpotifyPlayer"],
         AnchorPoint=Vector2.new(1,0), Position=UDim2.new(1,-8,0,8),
@@ -5886,6 +5724,7 @@ function Library:CreateSpotifyPlayer()
             TextColor3=isDestructive and Color3.fromRGB(230,90,90) or Library.FontColor,
             TextXAlignment=Enum.TextXAlignment.Left,
             Text=text,
+            ZIndex=201,
         })
         New("UIPadding", { Name="\0", Parent=btn, PaddingLeft=UDim.new(0,10) })
 
@@ -5927,10 +5766,10 @@ function Library:CreateSpotifyPlayer()
             end)
         end
 
-        local viewport = workspace.CurrentCamera.ViewportSize
+        local viewport = Library.ScreenGui.AbsoluteSize
         local menuSize = ContextMenuFrame.AbsoluteSize
-        local x = math.clamp(mouseX, 8, viewport.X - menuSize.X - 8)
-        local y = math.clamp(mouseY, 8, viewport.Y - menuSize.Y - 8)
+        local x = math.clamp(mouseX, 8, math.max(viewport.X - menuSize.X - 8, 8))
+        local y = math.clamp(mouseY, 8, math.max(viewport.Y - menuSize.Y - 8, 8))
         ContextMenuFrame.Position = UDim2.new(0, x, 0, y)
     end
 
@@ -5940,7 +5779,7 @@ function Library:CreateSpotifyPlayer()
             and ut ~= Enum.UserInputType.MouseButton2
             and ut ~= Enum.UserInputType.Touch then return end
         if not ContextMenuFrame or not ContextMenuFrame.Visible then return end
-        local mx, my = input.Position.X, input.Position.Y
+        local mx, my = Mouse.X, Mouse.Y
         local pos  = ContextMenuFrame.AbsolutePosition
         local size = ContextMenuFrame.AbsoluteSize
         if mx < pos.X or mx > pos.X + size.X
@@ -6042,14 +5881,12 @@ function Library:CreateSpotifyPlayer()
         end)
         Connect(Row.Button.MouseButton2Click, function()
             if not Row.Frame.Visible or not Row.Track then return end
-            local mouse = UserInputService:GetMouseLocation()
-            ShowContextMenu(Row.Track, mouse.X, mouse.Y)
+            ShowContextMenu(Row.Track, Mouse.X, Mouse.Y)
         end)
         -- [TOUCH] long press = right click
         Library:OnLongPress(Row.Button, function()
             if not Row.Frame.Visible or not Row.Track then return end
-            local mouse = UserInputService:GetMouseLocation()
-            ShowContextMenu(Row.Track, mouse.X, mouse.Y)
+            ShowContextMenu(Row.Track, Mouse.X, Mouse.Y)
         end)
         Row.Track = nil
         RecentRows[Index] = Row
@@ -6358,6 +6195,25 @@ function Library:CreateSpotifyPlayer()
         Items["LyricsScroll"].CanvasPosition = Vector2.new()
     end
 
+    local function ApplySyncedLyrics(parsed, progress)
+        CurrentLyrics = parsed or {}
+        CurrentLyricsSynced = true
+        CurrentHighlightIndex = 0
+        Items["LyricsText"].TextColor3 = Library.FontColor
+        RenderLyrics(1)
+        local gen = LyricsRenderGen + 1
+        LyricsRenderGen = gen
+        if progress then
+            local idx = 1
+            for i, line in ipairs(CurrentLyrics) do
+                if line.Time <= progress then idx = i else break end
+            end
+            CurrentHighlightIndex = idx
+            RenderLyrics(idx)
+            ScrollToActiveLine(idx, gen)
+        end
+    end
+
     local function LoadLyricsForTrack(track)
         if not track or not track.TrackId then return end
 
@@ -6370,23 +6226,7 @@ function Library:CreateSpotifyPlayer()
                 return
             end
             if cached.HasSynced then
-                CurrentLyrics = cached.Parsed or {}
-                CurrentLyricsSynced = true
-                CurrentHighlightIndex = 0
-                Items["LyricsText"].TextColor3 = Library.FontColor
-                RenderLyrics(1)
-                local gen = LyricsRenderGen + 1
-                LyricsRenderGen = gen
-                if track.Progress then
-                    local ms = track.Progress
-                    local idx = 1
-                    for i, line in ipairs(CurrentLyrics) do
-                        if line.Time <= ms then idx = i else break end
-                    end
-                    CurrentHighlightIndex = idx
-                    RenderLyrics(idx)
-                    ScrollToActiveLine(idx, gen)
-                end
+                ApplySyncedLyrics(cached.Parsed, track.Progress)
             else
                 SetLyricsPlain(cached.Plain ~= "" and cached.Plain or "No lyrics available.")
             end
@@ -6428,23 +6268,7 @@ function Library:CreateSpotifyPlayer()
             }
 
             if result.HasSynced then
-                CurrentLyrics = parsed
-                CurrentLyricsSynced = true
-                CurrentHighlightIndex = 0
-                Items["LyricsText"].TextColor3 = Library.FontColor
-                RenderLyrics(1)
-                local gen = LyricsRenderGen + 1
-                LyricsRenderGen = gen
-                if CurrentTrack and CurrentTrack.Progress then
-                    local ms = CurrentTrack.Progress
-                    local idx = 1
-                    for i, line in ipairs(CurrentLyrics) do
-                        if line.Time <= ms then idx = i else break end
-                    end
-                    CurrentHighlightIndex = idx
-                    RenderLyrics(idx)
-                    ScrollToActiveLine(idx, gen)
-                end
+                ApplySyncedLyrics(parsed, CurrentTrack and CurrentTrack.Progress)
             else
                 SetLyricsPlain(result.Plain ~= "" and result.Plain or "No lyrics available.")
             end
@@ -7016,7 +6840,7 @@ function Library:CreateSpotifyPlayer()
             end
         end
     end
-    
+
     local function RunSearch(query)
         local trimmed = (query or ""):gsub("^%s*(.-)%s*$", "%1")
         SearchAlbumBrowse = nil
@@ -7245,16 +7069,14 @@ function Library:CreateSpotifyPlayer()
             local r = SearchResults[i]
             if not r then return end
             if r.IsBack then return end
-            local mouse = UserInputService:GetMouseLocation()
-            ShowContextMenu(r, mouse.X, mouse.Y)
+            ShowContextMenu(r, Mouse.X, Mouse.Y)
         end)
 
         -- [TOUCH] long press = right click
         Library:OnLongPress(btn.Button, function()
             local r = SearchResults[i]
             if not r or r.IsBack then return end
-            local mouse = UserInputService:GetMouseLocation()
-            ShowContextMenu(r, mouse.X, mouse.Y)
+            ShowContextMenu(r, Mouse.X, Mouse.Y)
         end)
     end
 
@@ -7495,6 +7317,13 @@ function Library:CreateSpotifyPlayer()
         pcall(function() game:BindToClose(Cleanup) end)
     end
 
+    -- lift every ZIndex inside the player so it sits above the main window (see PLAYER_Z_OFFSET)
+    for _, Desc in ipairs(Items["SpotifyPlayer"]:GetDescendants()) do
+        if Desc:IsA("GuiObject") then
+            Desc.ZIndex = Desc.ZIndex + PLAYER_Z_OFFSET
+        end
+    end
+
     UpdateResults()
     SetSidebarTab("queue")
     SetExpanded(false, true)
@@ -7503,18 +7332,20 @@ function Library:CreateSpotifyPlayer()
 end
 
 -- =====================================================================
--- ESP Preview  (paste into the library file, right ABOVE these last two lines:
---     Library.Directory = "spotifyforRawr"
---     getgenv().Library = Library
--- )
+-- ESP Preview
 --
 -- Usage (after CreateWindow):
 --     local Preview = Library:CreateESPPreview({ Window = Window })
 --     Preview:Link(Toggles.ESPBox, 'Box')
 --     Preview:Link(Options.ESPBoxColor, 'BoxColor')
+--     Preview:Link(Options.ESPFillColor, 'FillColor', nil, 'FillTransparency')  -- 4th arg: also follow the picker's transparency
 --
 -- It docks to the right of the menu (or the left if there is no room), fades with the menu,
--- and can be dragged by its title bar. Drag the model to rotate it, scroll to zoom.
+-- follows Library.ColorTransparency like the rest of the UI and can be dragged by its title bar.
+-- Drag the model to rotate it, scroll to zoom. The character faces the camera by default.
+--
+-- Link() / Set() ignore values of the wrong type (for example a Toggle linked to a color key),
+-- so a wrong link can no longer throw "Color3 expected, got boolean".
 -- =====================================================================
 
 function Library:CreateESPPreview(Config)
@@ -7527,6 +7358,7 @@ function Library:CreateESPPreview(Config)
     local Width  = math.max(tonumber(Config.Width) or 240, 200);
     local Height = math.max(tonumber(Config.Height) or 340, 240);
     local FOV    = 50;
+    local FRONT  = math.pi; -- camera angle that looks at the front of the character
 
     local Preview = {
         Docked   = Config.Docked ~= false;
@@ -7573,7 +7405,7 @@ function Library:CreateESPPreview(Config)
             ChamsTransparency = 0.4;
             ChamsMaterial  = 'ForceField';  -- ForceField / Neon / Glass
 
-            AutoRotate     = true;
+            AutoRotate     = Config.AutoRotate == true; -- off by default so the model faces you
             RotationSpeed  = 0.6;           -- radians per second
             ZoomStep       = 0.12;
         };
@@ -7588,6 +7420,15 @@ function Library:CreateESPPreview(Config)
         return C;
     end;
 
+    -- always returns a valid Color3
+    local function Col(Value, Fallback)
+        if typeof(Value) == 'Color3' then
+            return Value;
+        end;
+
+        return Fallback or Color3.new(1, 1, 1);
+    end;
+
     -- ================================================================= frame
     local Outer = Library:Create('Frame', {
         Name = '\0';
@@ -7599,6 +7440,9 @@ function Library:CreateESPPreview(Config)
         ZIndex = 3;
         Parent = ScreenGui;
     });
+
+    -- from now on everything registered inside the preview follows Library.ColorTransparency
+    Library:AddTransparencyRoot(Outer);
 
     local Inner = Library:Create('Frame', {
         BackgroundColor3 = Library.MainColor;
@@ -7656,6 +7500,7 @@ function Library:CreateESPPreview(Config)
     local ResetBtn = MakeButton('Reset', 42, 40);
     local SpinBtn  = MakeButton('Spin', 86, 34, true);   -- colored by state (accent = spinning)
 
+    -- same look as a groupbox of the main window (no custom backdrop, so transparency matches the menu)
     local Section = Library:Create('Frame', {
         BackgroundColor3 = Library.BackgroundColor;
         BorderColor3 = Library.OutlineColor;
@@ -7671,21 +7516,16 @@ function Library:CreateESPPreview(Config)
         BorderColor3 = 'OutlineColor';
     });
 
-    local Backdrop = Library:Create('Frame', {
-        BackgroundColor3 = Color3.new(1, 1, 1);
+    local Highlight = Library:Create('Frame', {
+        BackgroundColor3 = Library.AccentColor;
         BorderSizePixel = 0;
-        Size = UDim2.new(1, 0, 1, 0);
-        ZIndex = 5;
+        Size = UDim2.new(1, 0, 0, 2);
+        ZIndex = 7;
         Parent = Section;
     });
 
-    Library:Create('UIGradient', {
-        Rotation = 90;
-        Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(24, 24, 24)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(14, 14, 14)),
-        });
-        Parent = Backdrop;
+    Library:AddToRegistry(Highlight, {
+        BackgroundColor3 = 'AccentColor';
     });
 
     local Area = Library:Create('TextButton', {
@@ -7936,11 +7776,11 @@ function Library:CreateESPPreview(Config)
     };
 
     -- ================================================================= appearance from settings
-    local Model, ViewCam, ModelParts, ChamsOriginals;
+    local Model, ViewCam, ModelParts, ChamsOriginals = nil, nil, nil, {};
     local Center, ModelSize = Vector3.new(0, 3, 0), Vector3.new(4, 6, 2);
     local DefaultDistance = 12;
     local Distance = 12;
-    local RotY, RotX = math.pi, 0.05;
+    local RotY, RotX = FRONT, 0.05;
 
     local function ApplyChams()
         if not ModelParts then return end;
@@ -7965,8 +7805,8 @@ function Library:CreateESPPreview(Config)
 
                     if O.Transparency < 0.99 then
                         Part.Material = Mat;
-                        Part.Color = Settings.ChamsColor;
-                        Part.Transparency = Settings.ChamsTransparency;
+                        Part.Color = Col(Settings.ChamsColor, Color3.fromRGB(59, 144, 204));
+                        Part.Transparency = tonumber(Settings.ChamsTransparency) or 0.4;
                         if O.TextureID ~= nil then Part.TextureID = '' end;
                     end;
                 end;
@@ -7987,16 +7827,18 @@ function Library:CreateESPPreview(Config)
     local function Render()
         local isCorner = Settings.BoxType == 'Corner';
         local isCircle = Settings.BoxType == 'Circle';
-        local isNormal = (not isCorner) and (not isCircle);
-        local t = math.max(Settings.BoxThickness, 1);
+        local t = math.max(tonumber(Settings.BoxThickness) or 1, 1);
+
+        local BoxColor     = Col(Settings.BoxColor);
+        local OutlineColor = Col(Settings.OutlineColor, Color3.new(0, 0, 0));
 
         BoxOutline.Enabled = Settings.Box and (not isCorner) and Settings.Outline;
         BoxOutline.Thickness = t + 2;
-        BoxOutline.Color = Settings.OutlineColor;
+        BoxOutline.Color = OutlineColor;
 
         BoxStroke.Enabled = Settings.Box and (not isCorner);
         BoxStroke.Thickness = t;
-        BoxStroke.Color = Settings.BoxColor;
+        BoxStroke.Color = BoxColor;
 
         BoxCorner.CornerRadius = isCircle and UDim.new(0.5, 0) or UDim.new(0, 0);
 
@@ -8014,33 +7856,33 @@ function Library:CreateESPPreview(Config)
         for i, CF in ipairs(CornerFrames) do
             CF.Position = CornerData[i][1];
             CF.Size = CornerData[i][2];
-            CF.BackgroundColor3 = Settings.BoxColor;
+            CF.BackgroundColor3 = BoxColor;
             CF.Visible = Settings.Box and isCorner;
 
             local Stroke = CF:FindFirstChildOfClass('UIStroke');
             if Stroke then
                 Stroke.Enabled = Settings.Outline;
-                Stroke.Color = Settings.OutlineColor;
+                Stroke.Color = OutlineColor;
             end;
         end;
 
-        Esp.BackgroundColor3 = Settings.FillColor;
-        Esp.BackgroundTransparency = Settings.Fill and Settings.FillTransparency or 1;
+        Esp.BackgroundColor3 = Col(Settings.FillColor);
+        Esp.BackgroundTransparency = Settings.Fill and (tonumber(Settings.FillTransparency) or 0.8) or 1;
 
         Glow.Visible = Settings.Glow;
-        Glow.ImageColor3 = Settings.GlowColor;
+        Glow.ImageColor3 = Col(Settings.GlowColor);
 
         Healthbar.Visible = Settings.Healthbar;
         HealthText.Visible = Settings.Healthbar and Settings.HealthbarText;
 
         NameLabel.Visible = Settings.Name;
-        NameLabel.TextColor3 = Settings.NameColor;
+        NameLabel.TextColor3 = Col(Settings.NameColor);
         DistanceLabel.Visible = Settings.Distance;
-        DistanceLabel.TextColor3 = Settings.DistanceColor;
+        DistanceLabel.TextColor3 = Col(Settings.DistanceColor);
         WeaponLabel.Visible = Settings.Weapon;
-        WeaponLabel.TextColor3 = Settings.WeaponColor;
+        WeaponLabel.TextColor3 = Col(Settings.WeaponColor);
         FlagsLabel.Visible = Settings.Flags;
-        FlagsLabel.TextColor3 = Settings.FlagsColor;
+        FlagsLabel.TextColor3 = Col(Settings.FlagsColor);
 
         SpinBtn.TextColor3 = Settings.AutoRotate and Library.AccentColor or Library.FontColor;
         if Library.RegistryMap[SpinBtn] then
@@ -8058,8 +7900,9 @@ function Library:CreateESPPreview(Config)
     end;
 
     -- puts every part back into the rig's rest pose (the clone is frozen mid-animation otherwise)
+    -- the root ends up at the origin with an identity rotation, i.e. the character faces -Z
     local function RestPose(Clone)
-        local Root = Clone.PrimaryPart or Clone:FindFirstChild('HumanoidRootPart')
+        local Root = Clone:FindFirstChild('HumanoidRootPart') or Clone.PrimaryPart
             or Clone:FindFirstChild('Torso') or Clone:FindFirstChildWhichIsA('BasePart', true);
         if not Root then return nil end;
 
@@ -8090,6 +7933,10 @@ function Library:CreateESPPreview(Config)
         end;
 
         return Root;
+    end;
+
+    local function ResetView()
+        RotY, RotX, Distance = FRONT, 0.05, DefaultDistance;
     end;
 
     function Preview:Refresh()
@@ -8134,14 +7981,16 @@ function Library:CreateESPPreview(Config)
         Model = Clone;
 
         local CF, Size = Clone:GetBoundingBox();
-        Center, ModelSize = CF.Position, Size;
+        ModelSize = Size;
+
+        -- center on the root horizontally (so tools / accessories can't push the model off to one side)
+        Center = Vector3.new(Root.Position.X, CF.Position.Y, Root.Position.Z);
 
         ViewCam = Library:Create('Camera', { FieldOfView = FOV; Parent = Viewport; });
         Viewport.CurrentCamera = ViewCam;
 
         DefaultDistance = (ModelSize.Y / 2) / math.tan(math.rad(FOV / 2)) * 1.55 + ModelSize.Z / 2;
-        Distance = DefaultDistance;
-        RotY, RotX = math.pi, 0.05;
+        ResetView();
 
         local Tool = Char:FindFirstChildOfClass('Tool');
         WeaponLabel.Text = Tool and Tool.Name or 'none';
@@ -8195,7 +8044,7 @@ function Library:CreateESPPreview(Config)
 
     Connect(ResetBtn.InputBegan, function(Input)
         if IsClick(Input) then
-            RotY, RotX, Distance = math.pi, 0.05, DefaultDistance;
+            ResetView();
         end;
     end);
 
@@ -8263,6 +8112,9 @@ function Library:CreateESPPreview(Config)
     end);
 
     -- ================================================================= show / hide with the menu
+    -- The fade targets live in Library.TransparencyCache, which is the same table the main window uses.
+    -- That way a change to Library.ColorTransparency while the preview is hidden is picked up
+    -- the next time it fades in (Library:SetTransparencyProp keeps the cache in sync).
     local FadeList = {};
     local FadeToken = 0;
     local FadeInfo = TweenInfo.new(0.2, Enum.EasingStyle.Linear);
@@ -8287,7 +8139,14 @@ function Library:CreateESPPreview(Config)
             for _, Prop in ipairs(Props) do
                 local V = Inst[Prop];
                 if V < 1 then
-                    table.insert(FadeList, { Inst = Inst, Prop = Prop, Orig = V });
+                    local Cache = Library.TransparencyCache[Inst];
+                    if not Cache then
+                        Cache = {};
+                        Library.TransparencyCache[Inst] = Cache;
+                    end;
+
+                    Cache[Prop] = V;
+                    table.insert(FadeList, { Inst = Inst, Prop = Prop });
                 end;
             end;
         end;
@@ -8298,6 +8157,11 @@ function Library:CreateESPPreview(Config)
                 Capture(D);
             end;
         end;
+    end;
+
+    local function FadeTarget(F)
+        local Cache = Library.TransparencyCache[F.Inst];
+        return Cache and Cache[F.Prop] or 0;
     end;
 
     function Preview:SetVisible(State)
@@ -8314,13 +8178,17 @@ function Library:CreateESPPreview(Config)
             Preview:UpdateDock();
 
             for _, F in ipairs(FadeList) do
-                TweenService:Create(F.Inst, FadeInfo, { [F.Prop] = F.Orig }):Play();
+                if F.Inst.Parent then
+                    TweenService:Create(F.Inst, FadeInfo, { [F.Prop] = FadeTarget(F) }):Play();
+                end;
             end;
         else
             Overlay.Visible = false;
 
             for _, F in ipairs(FadeList) do
-                TweenService:Create(F.Inst, FadeInfo, { [F.Prop] = 1 }):Play();
+                if F.Inst.Parent then
+                    TweenService:Create(F.Inst, FadeInfo, { [F.Prop] = 1 }):Play();
+                end;
             end;
 
             task.delay(FadeInfo.Time + 0.05, function()
@@ -8378,6 +8246,7 @@ function Library:CreateESPPreview(Config)
             RotY = RotY + Settings.RotationSpeed * Dt;
         end;
 
+        -- the camera orbits the character; RotY = FRONT looks straight at the front of the model
         local CamCF = CFrame.new(Center) * CFrame.Angles(0, RotY, 0) * CFrame.Angles(-RotX, 0, 0) * CFrame.new(0, 0, Distance);
         CamCF = CFrame.lookAt(CamCF.Position, Center);
         ViewCam.CFrame = CamCF;
@@ -8390,7 +8259,7 @@ function Library:CreateESPPreview(Config)
         end;
 
         -- 2D box from the top and bottom of the character
-        local Top, TopDepth = Project(CamCF, Center + Vector3.new(0, ModelSize.Y / 2, 0));
+        local Top = Project(CamCF, Center + Vector3.new(0, ModelSize.Y / 2, 0));
         local Bottom = Project(CamCF, Center - Vector3.new(0, ModelSize.Y / 2, 0));
         local Mid = Project(CamCF, Center);
 
@@ -8419,11 +8288,15 @@ function Library:CreateESPPreview(Config)
                 H = 0.6 + 0.4 * math.sin(Now * 1.5);
             end;
 
+            local High = Col(Settings.HealthHigh, Color3.fromRGB(38, 255, 0));
+            local Mid2 = Col(Settings.HealthMid, Color3.fromRGB(255, 179, 0));
+            local Low  = Col(Settings.HealthLow, Color3.fromRGB(255, 0, 0));
+
             local Color;
             if H > 0.5 then
-                Color = Settings.HealthMid:Lerp(Settings.HealthHigh, (H - 0.5) * 2);
+                Color = Mid2:Lerp(High, (H - 0.5) * 2);
             else
-                Color = Settings.HealthLow:Lerp(Settings.HealthMid, H * 2);
+                Color = Low:Lerp(Mid2, H * 2);
             end;
 
             HealthFill.Size = UDim2.new(1, 0, H, 0);
@@ -8437,6 +8310,7 @@ function Library:CreateESPPreview(Config)
         if Settings.Skeleton then
             local Bones = Model:FindFirstChild('UpperTorso') and BonesR15 or BonesR6;
             local Used = 0;
+            local SkelColor = Col(Settings.SkeletonColor);
 
             for _, Bone in ipairs(Bones) do
                 local P0 = Model:FindFirstChild(Bone[1]);
@@ -8448,7 +8322,7 @@ function Library:CreateESPPreview(Config)
 
                     if A and B then
                         Used = Used + 1;
-                        SetLine(GetLine(Used), A, B, 1, Settings.SkeletonColor);
+                        SetLine(GetLine(Used), A, B, 1, SkelColor);
                     end;
                 end;
             end;
@@ -8474,8 +8348,35 @@ function Library:CreateESPPreview(Config)
     end;
 
     -- ================================================================= public api
+    -- Sets a preview setting. Values of the wrong type are ignored instead of throwing.
     function Preview:Set(Key, Value)
-        if Settings[Key] == nil then return Preview end;
+        local Current = Settings[Key];
+
+        if Current == nil then
+            warn('ESPPreview:Set - unknown setting "' .. tostring(Key) .. '"');
+            return Preview;
+        end;
+
+        local Want = typeof(Current);
+
+        if typeof(Value) ~= Want then
+            if Want == 'number' then
+                Value = tonumber(Value);
+            elseif Want == 'boolean' then
+                if type(Value) == 'nil' then return Preview end;
+                Value = Value and true or false;
+            elseif Want == 'string' then
+                if type(Value) == 'table' then return Preview end;
+                Value = tostring(Value);
+            else
+                -- Color3 (or anything else) expected but something else came in
+                warn('ESPPreview:Set - "' .. tostring(Key) .. '" expects a ' .. Want .. ', got ' .. typeof(Value) .. ' (ignored)');
+                return Preview;
+            end;
+
+            if Value == nil then return Preview end;
+        end;
+
         Settings[Key] = Value;
 
         if Key == 'Chams' or Key == 'ChamsColor' or Key == 'ChamsTransparency' or Key == 'ChamsMaterial' then
@@ -8499,7 +8400,8 @@ function Library:CreateESPPreview(Config)
 
     -- ties a menu element to a preview setting without replacing the callback you already set on it
     -- (call it AFTER your own :OnChanged, since Linoria keeps one callback per element)
-    function Preview:Link(Element, Key, Transform)
+    -- TransparencyKey (optional): also copies a color picker's transparency into another setting, e.g. 'FillTransparency'
+    function Preview:Link(Element, Key, Transform, TransparencyKey)
         if not Element then return Preview end;
 
         local Old = Element.Changed;
@@ -8507,6 +8409,10 @@ function Library:CreateESPPreview(Config)
         local function Apply(Value)
             if Transform then Value = Transform(Value) end;
             Preview:Set(Key, Value);
+
+            if TransparencyKey and Element.Type == 'ColorPicker' then
+                Preview:Set(TransparencyKey, Element.Transparency);
+            end;
         end;
 
         Element.Changed = function(...)
@@ -8521,6 +8427,11 @@ function Library:CreateESPPreview(Config)
     function Preview:Destroy()
         for _, C in ipairs(Conns) do pcall(function() C:Disconnect() end) end;
         Conns = {};
+
+        for _, F in ipairs(FadeList) do
+            Library.TransparencyCache[F.Inst] = nil;
+        end;
+
         pcall(function() Outer:Destroy() end);
         Library.ESPPreview = nil;
     end;
