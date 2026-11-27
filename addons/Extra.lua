@@ -717,6 +717,11 @@ function Library:AddToRegistry(Instance, Properties, IsHud)
     end;
 end;
 
+
+function Library:AddTransparencyRoot(Instance)
+    Library.TransparencyCache[Instance] = true;
+end;
+
 function Library:RemoveFromRegistry(Instance)
     local Data = Library.RegistryMap[Instance];
 
