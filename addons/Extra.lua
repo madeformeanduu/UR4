@@ -7577,6 +7577,24 @@ function Library:CreateESPPreview(Config)
             ChamsTransparency = 0.4;
             ChamsMaterial  = 'ForceField';  -- ForceField / Neon / Glass
 
+            ChinaHat       = false;
+            ChinaHatColor1 = Color3.fromRGB(255, 0, 0);
+            ChinaHatColor2 = Color3.fromRGB(0, 255, 0);
+            ChinaHatColor3 = Color3.fromRGB(0, 0, 255);
+            ChinaHatColor4 = Color3.fromRGB(255, 255, 0);
+
+            Halo           = false;
+            HaloColor1     = Color3.fromRGB(255, 215, 0);
+            HaloColor2     = Color3.fromRGB(255, 255, 150);
+            HaloColor3     = Color3.fromRGB(218, 165, 32);
+            HaloColor4     = Color3.fromRGB(255, 255, 255);
+
+            MagicCircle    = false;
+            MagicCircleColor1 = Color3.fromRGB(255, 255, 255);
+            MagicCircleColor2 = Color3.fromRGB(190, 215, 255);
+
+            MarinESP       = false;
+
             AutoRotate     = Config.AutoRotate == true; -- off by default so the model faces you
             RotationSpeed  = 0.6;           -- radians per second
             ZoomStep       = 0.12;
@@ -7946,6 +7964,101 @@ function Library:CreateESPPreview(Config)
         { 'Torso', 'Left Leg' }, { 'Torso', 'Right Leg' },
     };
 
+    -- china hat visual
+    local ChinaHatFrame = Library:Create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 0.5);
+        BackgroundTransparency = 1;
+        Size = UDim2.fromOffset(80, 40);
+        Visible = false;
+        ZIndex = 11;
+        Parent = Overlay;
+    });
+    
+    local ChinaHatLines = {};
+    for i = 1, 12 do
+        local line = Library:Create('Frame', {
+            AnchorPoint = Vector2.new(0.5, 0.5);
+            BackgroundColor3 = Color3.new(1, 1, 1);
+            BorderSizePixel = 0;
+            Size = UDim2.fromOffset(1, 20);
+            Visible = false;
+            ZIndex = 11;
+            Parent = ChinaHatFrame;
+        });
+        table.insert(ChinaHatLines, line);
+    end;
+
+    -- halo visual
+    local HaloFrame = Library:Create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 0.5);
+        BackgroundTransparency = 1;
+        Size = UDim2.fromOffset(60, 60);
+        Visible = false;
+        ZIndex = 11;
+        Parent = Overlay;
+    });
+
+    local HaloRing = Library:Create('ImageLabel', {
+        AnchorPoint = Vector2.new(0.5, 0.5);
+        BackgroundTransparency = 1;
+        Position = UDim2.fromScale(0.5, 0.5);
+        Size = UDim2.fromScale(1, 1);
+        Image = 'rbxasset://textures/ui/GuiImagePlaceholder.png';
+        ImageColor3 = Color3.fromRGB(255, 215, 0);
+        Visible = true;
+        ZIndex = 11;
+        Parent = HaloFrame;
+    });
+
+    local HaloGlow = Library:Create('ImageLabel', {
+        AnchorPoint = Vector2.new(0.5, 0.5);
+        BackgroundTransparency = 1;
+        Position = UDim2.fromScale(0.5, 0.5);
+        Size = UDim2.fromScale(1.3, 1.3);
+        Image = 'rbxasset://textures/ui/GuiImagePlaceholder.png';
+        ImageColor3 = Color3.fromRGB(255, 255, 150);
+        ImageTransparency = 0.5;
+        Visible = true;
+        ZIndex = 10;
+        Parent = HaloFrame;
+    });
+
+    -- magic circle visual
+    local MagicCircleFrame = Library:Create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 1);
+        BackgroundTransparency = 1;
+        Size = UDim2.fromOffset(120, 60);
+        Visible = false;
+        ZIndex = 9;
+        Parent = Overlay;
+    });
+
+    local MagicCircleLines = {};
+    for i = 1, 16 do
+        local line = Library:Create('Frame', {
+            AnchorPoint = Vector2.new(0.5, 0.5);
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255);
+            BorderSizePixel = 0;
+            Size = UDim2.fromOffset(1, 60);
+            Visible = true;
+            ZIndex = 9;
+            Parent = MagicCircleFrame;
+        });
+        table.insert(MagicCircleLines, line);
+    end;
+
+    -- marin esp visual
+    local MarinImage = Library:Create('ImageLabel', {
+        AnchorPoint = Vector2.new(0.5, 0.5);
+        BackgroundTransparency = 1;
+        Image = 'rbxasset://textures/ui/GuiImagePlaceholder.png';
+        ImageColor3 = Color3.fromRGB(255, 192, 203);
+        Size = UDim2.fromOffset(100, 150);
+        Visible = false;
+        ZIndex = 8;
+        Parent = Overlay;
+    });
+
     -- ================================================================= appearance from settings
     local Model, ViewCam, ModelParts, ChamsOriginals = nil, nil, nil, {};
     local Center, ModelSize = Vector3.new(0, 3, 0), Vector3.new(4, 6, 2);
@@ -8058,6 +8171,32 @@ function Library:CreateESPPreview(Config)
         SpinBtn.TextColor3 = Settings.AutoRotate and Library.AccentColor or Library.FontColor;
         if Library.RegistryMap[SpinBtn] then
             Library.RegistryMap[SpinBtn].Properties.TextColor3 = Settings.AutoRotate and 'AccentColor' or 'FontColor';
+
+        -- Update visual elements visibility
+        ChinaHatFrame.Visible = Settings.ChinaHat;
+        HaloFrame.Visible = Settings.Halo;
+        MagicCircleFrame.Visible = Settings.MagicCircle;
+        MarinImage.Visible = Settings.MarinESP;
+
+        -- Update colors
+        if Settings.ChinaHat then
+            for i, line in ipairs(ChinaHatLines) do
+                local colorIdx = ((i - 1) % 4) + 1;
+                local colorKey = 'ChinaHatColor' .. colorIdx;
+                line.BackgroundColor3 = Col(Settings[colorKey], Color3.fromRGB(255, 255, 255));
+            end;
+        end;
+
+        if Settings.Halo then
+            HaloRing.ImageColor3 = Col(Settings.HaloColor1, Color3.fromRGB(255, 215, 0));
+            HaloGlow.ImageColor3 = Col(Settings.HaloColor2, Color3.fromRGB(255, 255, 150));
+        end;
+
+        if Settings.MagicCircle then
+            for i, line in ipairs(MagicCircleLines) do
+                line.BackgroundColor3 = Col(Settings.MagicCircleColor1, Color3.fromRGB(255, 255, 255));
+            end;
+        end;
         end;
     end;
 
@@ -8501,6 +8640,104 @@ function Library:CreateESPPreview(Config)
             for i = Used + 1, #SkeletonLines do SkeletonLines[i].Visible = false end;
         else
             for _, L in pairs(SkeletonLines) do L.Visible = false end;
+        end;
+
+        -- china hat rendering
+        if Settings.ChinaHat then
+            local Head = Model and Model:FindFirstChild('Head');
+            if Head then
+                local HeadTop = Project(CamCF, Head.Position + Vector3.new(0, 1.5, 0));
+                if HeadTop then
+                    ChinaHatFrame.Position = UDim2.fromOffset(HeadTop.X, HeadTop.Y);
+                    ChinaHatFrame.Visible = true;
+                    
+                    -- Animate rotating lines
+                    local angle = Now * 2;
+                    for i, line in ipairs(ChinaHatLines) do
+                        local a = angle + (i - 1) * (math.pi * 2 / 12);
+                        line.Position = UDim2.fromScale(0.5 + math.cos(a) * 0.4, 0.5 + math.sin(a) * 0.2);
+                        line.Rotation = math.deg(a);
+                        line.Visible = true;
+                    end;
+                else
+                    ChinaHatFrame.Visible = false;
+                end;
+            else
+                ChinaHatFrame.Visible = false;
+            end;
+        else
+            ChinaHatFrame.Visible = false;
+        end;
+
+        -- halo rendering
+        if Settings.Halo then
+            local Head = Model and Model:FindFirstChild('Head');
+            if Head then
+                local HaloPos = Project(CamCF, Head.Position + Vector3.new(0, 1.2, 0));
+                if HaloPos then
+                    HaloFrame.Position = UDim2.fromOffset(HaloPos.X, HaloPos.Y);
+                    HaloFrame.Visible = true;
+                    
+                    -- Animate shimmer
+                    local shimmer = 0.5 + 0.3 * math.sin(Now * 4);
+                    HaloGlow.ImageTransparency = shimmer;
+                else
+                    HaloFrame.Visible = false;
+                end;
+            else
+                HaloFrame.Visible = false;
+            end;
+        else
+            HaloFrame.Visible = false;
+        end;
+
+        -- magic circle rendering
+        if Settings.MagicCircle then
+            local Root = Model and (Model:FindFirstChild('HumanoidRootPart') or Model:FindFirstChild('Torso'));
+            if Root then
+                local GroundPos = Project(CamCF, Root.Position - Vector3.new(0, 3, 0));
+                if GroundPos then
+                    MagicCircleFrame.Position = UDim2.fromOffset(GroundPos.X, GroundPos.Y);
+                    MagicCircleFrame.Visible = true;
+                    
+                    -- Animate rotating star pattern
+                    local angle = Now * 1.5;
+                    local centerX, centerY = 60, 30;
+                    for i, line in ipairs(MagicCircleLines) do
+                        local a = angle + (i - 1) * (math.pi * 2 / 16);
+                        local radius = (i % 2 == 0) and 50 or 30;
+                        local x = centerX + math.cos(a) * radius;
+                        local y = centerY + math.sin(a) * radius * 0.3;
+                        line.Position = UDim2.fromOffset(x, y);
+                        line.Rotation = math.deg(a + math.pi / 2);
+                        line.Visible = true;
+                    end;
+                else
+                    MagicCircleFrame.Visible = false;
+                end;
+            else
+                MagicCircleFrame.Visible = false;
+            end;
+        else
+            MagicCircleFrame.Visible = false;
+        end;
+
+        -- marin esp rendering
+        if Settings.MarinESP then
+            local Root = Model and (Model:FindFirstChild('HumanoidRootPart') or Model:FindFirstChild('Torso'));
+            if Root then
+                local MarinPos = Project(CamCF, Root.Position);
+                if MarinPos then
+                    MarinImage.Position = UDim2.fromOffset(MarinPos.X, MarinPos.Y);
+                    MarinImage.Visible = true;
+                else
+                    MarinImage.Visible = false;
+                end;
+            else
+                MarinImage.Visible = false;
+            end;
+        else
+            MarinImage.Visible = false;
         end;
     end);
 
