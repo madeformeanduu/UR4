@@ -467,7 +467,7 @@ do
 end
 
 local _59 = _48:CreateWindow({
-    Title = 'Rawr.xyz | Fall Season 🍁',
+    Title = 'Rawr.xyz | Its almost time. 🍁',
     Center = true,
     AutoShow = true,
     TabPadding = 2,
@@ -1452,6 +1452,7 @@ end)
 
 AuraToggle = AuraSection:AddToggle('ApplyAura', {
     Text = 'Apply Aura',
+    Tooltip = 'Wraps your character in a glowing aura effect',
     Default = false,
 }) do
     AuraToggle:AddColorPicker('AuraColor', {
@@ -1485,6 +1486,7 @@ end)
 
 AuraSection:AddToggle('FakeRobloxFF', {
     Text = 'Fake Roblox Forcefield',
+    Tooltip = 'Displays the classic Roblox forcefield shield around you',
     Default = false,
     Searchable = true,
 })
@@ -1543,6 +1545,7 @@ end
 
 TrailToggle = TrailSection:AddToggle('TrailToggle', {
     Text = 'Trail',
+    Tooltip = 'Leaves a colored trail behind you as you move',
     Default = false,
     Searchable = true,
 }) do
@@ -1626,6 +1629,7 @@ end
 
 BackgroundNoiseToggle = BackgroundNoiseSection:AddToggle('BackgroundNoise', {
     Text = 'Background Noise',
+    Tooltip = 'Plays ambient background sounds for atmosphere',
     Default = false,
     Searchable = true,
 })
@@ -1683,6 +1687,7 @@ BrightnessSection = WorldTab:AddLeftGroupbox('Brightness')
 
 BrightnessToggle = BrightnessSection:AddToggle('Brightness', {
     Text = 'Brightness',
+    Tooltip = 'Makes the game brighter or darker overall',
     Default = false,
     Searchable = true,
 })
@@ -1733,6 +1738,7 @@ FogSection = WorldTab:AddLeftGroupbox('Fog')
 
 FogToggle = FogSection:AddToggle('FogToggle', {
     Text = 'Fog',
+    Tooltip = 'Adjust or remove fog to see further',
     Default = false,
     Searchable = true,
 }) do
@@ -1777,6 +1783,7 @@ ShadowSection = WorldTab:AddLeftGroupbox('Shadow Modification')
 
 ShadowToggle = ShadowSection:AddToggle('ShadowMod', {
     Text = 'Shadow Modification',
+    Tooltip = 'Customize how shadows look in the game',
     Default = false,
     Searchable = true,
 })
@@ -1786,7 +1793,8 @@ ShadowDep:AddSlider('ShadowSoftness', {
     Text = 'Shadow Softness', Default = 0.5, Min = 0, Max = 1, Rounding = 2,
 })
 ShadowDep:AddToggle('GlobalShadows', {
-    Text = 'Enable Global Shadows', Default = true,
+    Text = 'Enable Global Shadows',
+    Tooltip = 'Turn shadows on or off completely', Default = true,
 })
 ShadowDep:SetupDependencies({ { Toggles.ShadowMod, true } })
 
@@ -1811,18 +1819,20 @@ LightingFullSection = WorldTab:AddLeftGroupbox('Lighting')
 
 LightingFullToggle = LightingFullSection:AddToggle('LightingFull', {
     Text = 'Lighting',
+    Tooltip = "Full control over the game's lighting system",
     Default = false,
     Searchable = true,
-}) do
-    LightingFullToggle:AddColorPicker('LightingShiftBottom', {
-        Default = Color3.fromRGB(255, 255, 255),
-        Title = 'ColorShift Bottom',
-    })
-    LightingFullToggle:AddColorPicker('LightingShiftTop', {
-        Default = Color3.fromRGB(255, 255, 255),
-        Title = 'ColorShift Top',
-    })
-end
+})
+
+LightingFullToggle:AddColorPicker('LightingShiftBottom', {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = 'ColorShift Bottom',
+})
+
+LightingFullToggle:AddColorPicker('LightingShiftTop', {
+    Default = Color3.fromRGB(255, 255, 255),
+    Title = 'ColorShift Top',
+})
 
 LightingFullDep = LightingFullSection:AddDependencyBox()
 LightingFullDep:AddSlider('LightingClockTime', {
@@ -1864,6 +1874,7 @@ LightingModeSection = WorldTab:AddLeftGroupbox('Lighting Mode')
 
 LightingModeToggle = LightingModeSection:AddToggle('LightingMode', {
     Text = 'Lighting Mode',
+    Tooltip = 'Switch between different lighting rendering modes',
     Default = false,
     Searchable = true,
 })
@@ -1894,6 +1905,7 @@ WorldTimeSection = WorldTab:AddLeftGroupbox('World Time')
 
 WorldTimeToggle = WorldTimeSection:AddToggle('WorldTime', {
     Text = 'World Time',
+    Tooltip = 'Control the time of day in the game',
     Default = false,
     Searchable = true,
 })
@@ -1922,6 +1934,7 @@ AtmosphereObject = nil
 
 AtmosphereToggle = AtmosphereSection:AddToggle('Atmosphere', {
     Text = 'Atmosphere',
+    Tooltip = 'Add or modify atmospheric effects like haze',
     Default = false,
     Searchable = true,
 }) do
@@ -2141,6 +2154,7 @@ end
 
 EmoteTab:AddToggle('EmotesEnabled', {
     Text = 'Enabled',
+    Tooltip = 'Allows you to play emotes from the menu',
     Default = false,
     Searchable = true,
 })
@@ -2340,6 +2354,7 @@ end
 
 WeatherToggle = WeatherSection:AddToggle('WeatherToggle', {
     Text = 'Weather',
+    Tooltip = 'Adds weather effects like rain or snow',
     Default = false,
     Searchable = true,
 }) do
@@ -4341,7 +4356,8 @@ function ApplyColorGrading()
 end
 
 BloomToggle = EffectsSection:AddToggle('Bloom', {
-    Text = 'Bloom', Default = false, Searchable = true,
+    Text = 'Bloom',
+    Tooltip = 'Adds a soft glow to bright areas for a dreamy look', Default = false, Searchable = true,
 })
 
 BloomDep = EffectsSection:AddDependencyBox()
@@ -4353,7 +4369,8 @@ BloomDep:SetupDependencies({ { Toggles.Bloom, true } })
 EffectsSection:AddDivider()
 
 SunRaysToggle = EffectsSection:AddToggle('SunRays', {
-    Text = 'Sun Rays', Default = false, Searchable = true,
+    Text = 'Sun Rays',
+    Tooltip = 'Creates sun ray effects that shine through the environment', Default = false, Searchable = true,
 })
 
 SunRaysDep = EffectsSection:AddDependencyBox()
@@ -4364,7 +4381,10 @@ SunRaysDep:SetupDependencies({ { Toggles.SunRays, true } })
 EffectsSection:AddDivider()
 
 DoFToggle = EffectsSection:AddToggle('DepthOfField', {
-    Text = 'Depth of Field', Default = false, Searchable = true,
+    Text = 'Depth of Field',
+    Tooltip = "Blurs distant objects to focus on what's close to you",
+    Default = false,
+    Searchable = true,
 })
 
 DoFDep = EffectsSection:AddDependencyBox()
@@ -4398,7 +4418,8 @@ if not ColorCorrection then
 end
 
 SaturationToggle = ColorCorrectionSection:AddToggle('Saturation', {
-    Text = 'Saturation', Default = false, Searchable = true,
+    Text = 'Saturation',
+    Tooltip = 'Adjusts how vibrant or washed out colors appear', Default = false, Searchable = true,
 })
 
 SaturationDep = ColorCorrectionSection:AddDependencyBox()
@@ -4416,7 +4437,8 @@ Options.SaturationValue:OnChanged(function(value)
 end)
 
 ContrastToggle = ColorCorrectionSection:AddToggle('Contrast', {
-    Text = 'Contrast', Default = false, Searchable = true,
+    Text = 'Contrast',
+    Tooltip = 'Increases the difference between light and dark areas', Default = false, Searchable = true,
 })
 
 ContrastDep = ColorCorrectionSection:AddDependencyBox()
@@ -4444,7 +4466,8 @@ if _G._AspectRatioRenderConn then
 end
 
 AspectRatioToggle = AspectRatioSection:AddToggle('AspectRatio', {
-    Text = 'Aspect Ratio', Default = false, Searchable = true,
+    Text = 'Aspect Ratio',
+    Tooltip = 'Change your screen aspect ratio', Default = false, Searchable = true,
 })
 
 AspectRatioDep = AspectRatioSection:AddDependencyBox()
@@ -4493,7 +4516,8 @@ Options.AspectRatioVerticalSlider:OnChanged(function(value)
 end)
 
 AspectRatioSection:AddToggle('DisableRendering', {
-    Text = 'Disable Rendering', Default = false, Searchable = true,
+    Text = 'Disable Rendering',
+    Tooltip = 'Disables parts of the game rendering to boost FPS', Default = false, Searchable = true,
     Callback = function(value)
         pcall(function()
             RunService:Set3dRenderingEnabled(not value)
@@ -4606,7 +4630,8 @@ function CleanupTextures()
 end
 
 TexturesToggle = TexturesSection:AddToggle('Textures', {
-    Text = 'Textures', Default = false, Searchable = true,
+    Text = 'Textures',
+    Tooltip = 'Removes all textures from the game for a cleaner look', Default = false, Searchable = true,
 })
 
 TexturesDep = TexturesSection:AddDependencyBox()
@@ -4628,7 +4653,8 @@ end)
 AmbientSection = WorldTab:AddRightGroupbox('Ambient')
 
 AmbientToggle = AmbientSection:AddToggle('Ambient', {
-    Text = 'Ambient', Default = false, Searchable = true,
+    Text = 'Ambient',
+    Tooltip = 'Changes the overall lighting color of the environment', Default = false, Searchable = true,
 }) do
     AmbientToggle:AddColorPicker('AmbientColor', {
         Default = Lighting.Ambient, Title = 'Ambient Color',
@@ -5466,10 +5492,12 @@ fillToggle:AddColorPicker('FovFillColor2', {
 
 _visualizer:AddToggle('FovFillAnimated', {
     Text = 'Animated Fill',
+    Tooltip = 'Animates the FOV circle fill with rainbow colors',
     Default = _G.FOV.filled_animated,
 })
 _visualizer:AddToggle('FovSpin', {
     Text = 'Spin',
+    Tooltip = 'Makes the FOV circle spin continuously',
     Default = _G.FOV.spin_on,
 })
 _visualizer:AddToggle('FovFollowMuzzle', {
@@ -5911,6 +5939,7 @@ end
 --  first tab
 local _63 = _62:AddToggle('Enabled', {
     Text = 'Target Aim',
+    Tooltip = 'Enables the custom UI display',
     Default = false,
     Searchable = true,
 })
@@ -5957,6 +5986,7 @@ TargetAimSettings:AddDropdown('AimTargetPart', {
 
 _62:AddToggle('ManipulatedText', {
     Text = 'Show Watermark',
+    Tooltip = 'Shows manipulated stats on the UI',
     Default = false,
     Searchable = true,
 }):AddSettings({
@@ -5970,6 +6000,7 @@ _62:AddToggle('ManipulatedText', {
 
 _62:AddToggle('TargetInfo', {
     Text = 'Target Info',
+    Tooltip = 'Shows information about your current target',
     Default = false,
     Searchable = true,
 }):AddColorPicker('TargetInfoTextColor', {
@@ -5996,12 +6027,14 @@ _G._67 = _67
 
 local _68 = _67:AddToggle('Spectate', {
     Text = 'Spectate Target',
+    Tooltip = 'Automatically spectates your target',
     Default = false,
     Searchable = true,
 })
 
 local _69 = _67:AddToggle('Highlight', {
     Text = 'Player Highlight',
+    Tooltip = 'Highlights your target with a glow effect',
     Default = false,
     Searchable = true,
 })
@@ -6020,6 +6053,7 @@ local _71 = _69:AddColorPicker('HighlightOutlineColor', {
 
 local _72 = _67:AddToggle('Line', {
     Text = 'Snap Lines',
+    Tooltip = 'Draws a line from you to your target',
     Default = false,
     Searchable = true,
 })
@@ -6032,6 +6066,7 @@ local _73 = _72:AddColorPicker('LineColor', {
 
 local _74 = _67:AddToggle('AutoShoot', {
     Text = 'Auto Shoot',
+    Tooltip = 'Automatically shoots your gun at the target',
     Default = false,
     Searchable = true,
 })
@@ -6043,6 +6078,7 @@ AutoShootSettings = _74:AddSettings({
 
 AutoShootDistToggle = AutoShootSettings:AddToggle('AutoShootDistCheck', {
     Text = 'Distance Check',
+    Tooltip = 'Only auto-shoot if target is within range',
     Default = false,
     Searchable = true,
 })
@@ -6059,12 +6095,14 @@ AutoShootMaxDist = AutoShootSettings:AddSlider('AutoShootMaxDist', {
 
 _67:AddToggle('FaceTarget', {
     Text = 'Face Target',
+    Tooltip = 'Makes your character always face towards your target',
     Default = false,
     Searchable = true,
 })
 
 HitNotifToggle = _67:AddToggle('HitNotifications', {
     Text = 'Hit Notifications',
+    Tooltip = 'Shows a notification whenever you hit someone',
     Default = false,
     Searchable = true,
 })
@@ -6076,6 +6114,7 @@ HitNotifSettings = HitNotifToggle:AddSettings({
 
 HitNotifSettings:AddToggle('SelfHitNotifications', {
     Text = 'Self Hit Notifications',
+    Tooltip = 'Shows notifications when you get hit too',
     Default = false,
 })
 
@@ -6097,6 +6136,7 @@ HitNotifSettings:AddDropdown('SelfHitNotifyMode', {
 
 HitSoundToggle = _67:AddToggle('HitSoundEnabled', {
     Text = 'Hit Sound',
+    Tooltip = 'Plays a sound effect when you hit someone',
     Default = false,
     Searchable = true,
 })
@@ -6131,6 +6171,7 @@ HitSoundSettings:AddSlider('HitSoundVolume', {
 
 KillSoundToggle = _67:AddToggle('KillSoundEnabled', {
     Text = 'Kill Sound',
+    Tooltip = 'Plays a sound effect when you get a kill',
     Default = false,
     Searchable = true,
 })
@@ -6672,6 +6713,7 @@ end)
 
 _67:AddToggle('WhitelistEnabled', {
     Text = 'Enable Whitelist',
+    Tooltip = 'Only targets players on your whitelist',
     Default = false,
 })
 _67:AddDropdown('WhitelistPlayers', {
@@ -6689,10 +6731,12 @@ end)
 
 _67:AddToggle('BlacklistEnabled', {
     Text = 'Enable Blacklist',
+    Tooltip = 'Never targets players on your blacklist',
     Default = false,
 })
 _67:AddToggle('AutoBlockFriends', {
     Text = 'Auto-Block Friends',
+    Tooltip = 'Automatically adds your Roblox friends to blacklist',
     Default = true,
 })
 _67:AddDropdown('BlacklistPlayers', {
@@ -6713,11 +6757,13 @@ local _76 = _75:AddTab('Checks')
 
 _76:AddToggle('KnockCheck', {
     Text = 'Skip Knocked Players',
+    Tooltip = "Won't target knocked players",
     Default = true,
 })
 
 _76:AddToggle('ProtectedCheck', {
     Text = 'Skip Protected Players',
+    Tooltip = "Won't target protected players",
     Default = true,
 })
 
@@ -6746,6 +6792,7 @@ end
 
 _Extra2:AddToggle('UnlockCameraDistance', {
     Text = 'Unlock Camera Distance',
+    Tooltip = 'Zoom your camera in or out beyond normal limits',
     Default = false,
     Searchable = true,
 })
@@ -6864,6 +6911,7 @@ end)
 -- Show Chat
 _Extra2:AddToggle('ShowChat', {
     Text = 'Show Chat',
+    Tooltip = 'Shows or hides the chat window',
     Default = false,
     Searchable = true,
 })
@@ -6909,6 +6957,7 @@ _G.antiFlingConnections = {} -- unused but keepin it jus because
 
 _Extra2:AddToggle('AntiFling', {
     Text = 'Anti-Fling',
+    Tooltip = 'Prevents other players from flinging you around',
     Default = true,
     Searchable = true,
 })
@@ -6946,6 +6995,7 @@ _G.setAntiFling(Toggles.AntiFling.Value)
 _78:AddLabel('Movement')
 local _79 = _78:AddToggle('VoidHide', {
     Text = 'Void Hide',
+    Tooltip = 'Hides you below the map to avoid being seen',
     Default = false,
     Searchable = true,
 })
@@ -6960,6 +7010,7 @@ local _80 = _79:AddKeyPicker('VoidHideKeybind', {
 
 local _247 = _78:AddToggle('CFrameFly', {
     Text = 'CFrame Fly',
+    Tooltip = 'Fly around the map freely',
     Default = false,
     Searchable = true,
 })
@@ -6985,12 +7036,14 @@ _247:AddSettings({
 
 local _NoclipToggle = _78:AddToggle('Noclip', {
     Text = 'NoClip',
+    Tooltip = 'Walk through walls and objects',
     Default = false,
     Searchable = true,
 })
 
 normalone = _78:AddToggle('Spinbot', {
     Text = 'Spinbot',
+    Tooltip = 'Spins your character around continuously',
     Default = false,
     Searchable = true,
 })
@@ -7079,6 +7132,7 @@ end)
 
 local _WSToggle = _78:AddToggle('WalkSpeedEnabled', {
     Text = 'Walk Speed',
+    Tooltip = 'Modify how fast your character moves',
     Default = false,
 })
 
@@ -7097,6 +7151,7 @@ WalkSpeedSettings = _WSToggle:AddSettings({
 
 WalkSpeedSettings:AddToggle('WalkSpeedInstantStop', {
     Text = 'Instant Stop',
+    Tooltip = 'Stop moving immediately when you release movement keys',
     Default = false,
 })
 
@@ -7117,6 +7172,7 @@ WalkSpeedSettings:AddDropdown('WalkSpeedMethod', {
 
 local _JPToggle = _78:AddToggle('JumpPowerEnabled', {
     Text = 'Jump Power',
+    Tooltip = 'Control how high your character can jump',
     Default = false,
     Searchable = true,
 })
@@ -7145,6 +7201,7 @@ _78:AddLabel('#Love ur neighbors')
 
 _78:AddToggle('SpreadEnabled', {
     Text = 'Spread Modifier',
+    Tooltip = "Makes your character's limbs spread out",
     Default = false,
     Searchable = true,
 })
@@ -7180,6 +7237,7 @@ end)
 _78:AddDivider()
 Toolmat = _78:AddToggle('ToolMat', {
     Text = 'Tool Material',
+    Tooltip = 'Changes the material appearance of your gun',
     Default = false,
     Searchable = true,
 })
@@ -8707,6 +8765,7 @@ local _AutoArmorThresholdSlider = _78:AddSlider('AutoArmorThreshold', {
 
 local _AutoArmorVoidIgnoreToggle = _78:AddToggle('AutoArmorVoidIgnore', {
     Text = 'Ignore Void Hide',
+    Tooltip = "Auto-buys armor even when you're in the void",
     Default = true,
 })
 
@@ -8714,21 +8773,25 @@ _78:AddDivider()
 _78:AddLabel('Player ESP')
 local _ESPEnabled = _78:AddToggle('ESPEnabled', {
     Text = 'ESP Enabled',
+    Tooltip = "main toggle",
     Default = true,
     Searchable = true,
 })
 Payernamestoggle = _78:AddToggle('ESPShowNames', {
     Text = 'Player Names',
+    Tooltip = "Shows player names above their head",
     Default = true,
     Searchable = true,
 })
 Distancetoggleesp = _78:AddToggle('ESPShowDistance', {
     Text = 'Distance',
+    Tooltip = "Shows how far away each player is",
     Default = false,
     Searchable = true,
 })
 healthtogglehealth = _78:AddToggle('ESPShowHealth', {
     Text = 'Health',
+    Tooltip = 'Shows health bars for players',
     Default = false,
     Searchable = true,
 })
@@ -8754,6 +8817,7 @@ _G.box_esp_connection = nil
 
 BoxESPToggle = _78:AddToggle('BoxESPEnabled', {
     Text = 'Box ESP',
+    Tooltip = 'Draws boxes around players',
     Default = false,
     Searchable = true,
 })
@@ -8805,6 +8869,7 @@ BoxESPSettings:AddDropdown("BoxESPArmorPosition", {
 
 local _SkeletonToggle = _78:AddToggle('ESPShowSkeleton', {
     Text = 'Skeleton',
+    Tooltip = 'Shows player skeleton through walls',
     Default = false,
     Searchable = true,
 })
@@ -9046,6 +9111,7 @@ end
 
 _78:AddToggle('MarinESP', {
     Text = 'Marin ESP',
+    Tooltip = 'Displays an anime image overlay on players',
     Default = false,
     Searchable = true,
     Callback = function(value)
@@ -9337,6 +9403,7 @@ function ChinaHat:setOffsetY(o) offsetY = o end
 
 chinahattoggle = _78:AddToggle("ChinaHatEnabled", {
     Text = "China Hat",
+    Tooltip = 'Spinning colorful cone hat above your head',
     Default = false,
     Searchable = true,
 })
@@ -9659,6 +9726,7 @@ end
 
 Halotoggle = _78:AddToggle("HaloEnabled", {
     Text = "Halo",
+    Tooltip = 'Glowing golden ring above your head like an angel',
     Default = false,
     Searchable = true,
 })
@@ -10168,6 +10236,7 @@ end
 
 Mctoggle = _78:AddToggle("MagicCircleEnabled", {
     Text = "Magic Circle",
+    Tooltip = 'Rotating magical star pattern on the ground beneath you',
     Default = false,
     Searchable = true,
 })
@@ -10455,6 +10524,7 @@ GunVisuals = Misctab:AddLeftGroupbox('Gun Visuals')
 
 BulletTracersToggle = GunVisuals:AddToggle('PlayerBulletTracers', {
     Text = 'Bullet Tracers',
+    Tooltip = 'Shows the path of bullets that players shoot',
     Default = false,
     Callback = function(v) BT_Enabled = v BT_Refresh() end,
     Searchable = true,
@@ -10765,6 +10835,7 @@ end)
 
 AnimationSection:AddToggle('AnimSetEnabled', {
     Text = 'Apply Animation',
+    Tooltip = 'Changes your character animation set',
     Default = false,
     Searchable = true,
 })
@@ -11696,6 +11767,7 @@ _78:AddLabel('Extra')
 
 local _afkto = _78:AddToggle('AntiAFK', {
     Text = 'Anti AFK',
+    Tooltip = 'Prevents you from being kicked for being idle',
     Default = false,
     Searchable = true,
 })
@@ -11794,6 +11866,7 @@ end
 
 local antiStompToggle = _78:AddToggle('AntiStompEnabled', {
     Text = 'Anti Stomp',
+    Tooltip = 'Automatically blocks stomps',
     Default = false,
     Searchable = true,
 })
@@ -11994,6 +12067,7 @@ end
 
 ModDetectorToggle = _78:AddToggle('ModDetectorEnabled', {
     Text = 'Mod Detector',
+    Tooltip = 'Alerts you when moderators join the server',
     Default = false,
     Searchable = true,
 })
@@ -12217,6 +12291,7 @@ end
 local StompEnabled = false
 local StompToggle = _78:AddToggle('AutoStomp', {
     Text = 'Auto Stomp',
+    Tooltip = 'Automatically stomps knocked players',
     Default = false,
     Searchable = true,
 })
@@ -12282,6 +12357,7 @@ GRAB_REMOTES = {
 
 GrabToggle = _78:AddToggle('AutoGrab', {
     Text = 'Auto Grab',
+    Tooltip = 'Automatically grabs cash drops',
     Default = false,
     Searchable = true,
 })
@@ -12309,6 +12385,7 @@ DefenseCircleIsControlling = false
 -- UI
 local DefenseCircleToggle = _67ha:AddToggle('DefenseCircleToggle', {
     Text = 'Defense Circle',
+    Tooltip = 'Creates a circular defense zone around you',
     Default = false,
     Searchable = true,
 })
@@ -12337,6 +12414,7 @@ local DefenseCircleRadiusSlider = _67ha:AddSlider('DefenseCircleRadius', {
 
 local DefenseCircleVisualToggle = _67ha:AddToggle('DefenseCircleVisual', {
     Text = 'Show Circle Visual',
+    Tooltip = 'Shows the defense circle visually',
     Default = true,
     Searchable = true,
 })
@@ -12376,6 +12454,7 @@ end)
 _96:AddToggle('WatermarkVisible', {
     Text = 'Watermark',
     Default = true,
+	Tooltip = "shows watermark"
 })
 
 Library:SetWatermark("Rawr.xyz <3 | discord.gg/eMpUQzFrNG")
@@ -12385,53 +12464,11 @@ Toggles.WatermarkVisible:OnChanged(function(v)
     Library:SetWatermarkVisibility(v)
 end)
 
-local ESPWidgetBox = _60['UI Settings']:AddLeftGroupbox('ESP Preview Controls')
-
-local Preview -- created the first time the toggle is switched on
-
-local function EnsurePreview()
-    if Preview then return Preview end
-
-    Preview = _48:CreateESPPreview({ Title = 'ESP Preview' })
-    Preview.AutoShow = false -- the toggle below decides visibility
-
-    -- Box
-    Preview:Link(Toggles.BoxESPEnabled, 'Box')
-    Preview:Link(Options.BoxESPColor,   'BoxColor')
-    Preview:Link(Options.BoxESPType,    'BoxType')
-
-    -- Health
-    Preview:Link(Toggles.ESPShowHealth, 'Healthbar')
-
-    -- Text & skeleton
-    Preview:Link(Toggles.ESPShowNames,    'Name')
-    Preview:Link(Toggles.ESPShowDistance, 'Distance')
-    Preview:Link(Toggles.ESPShowSkeleton, 'Skeleton')
-    Preview:Link(Options.SkeletonColor,   'SkeletonColor')
-
-    return Preview
-end
-
-ESPWidgetBox:AddToggle('ESPPreviewEnabled', {
-    Text = 'ESP Preview',
-    Default = false,
-    Tooltip = 'Shows a live preview of your ESP next to the menu',
-    Callback = function(on)
-        if on then EnsurePreview() end
-    end,
-})
-
--- the preview only shows while the toggle is on AND the menu is open
-_48:GiveSignal(game:GetService('RunService').RenderStepped:Connect(function()
-    if Preview then
-        Preview:SetVisible(Toggles.ESPPreviewEnabled.Value and _48.IsOpen)
-    end
-end))
-
 AUTOLOAD_RELAY = "https://ur-4.vercel.app/api"
 
 autoloadtoggle = _96:AddToggle('AutoloadScript', {
     Text    = 'Autoload on Rejoin',
+    Tooltip = 'Automatically runs the script when you join',
     Default = false,
     Searchable = true,
 })
@@ -13158,6 +13195,7 @@ end)
 
 RejoinToggle = _96:AddToggle('RejoinOnKick', {
     Text = 'Rejoin on Kick/Disconnect',
+    Tooltip = 'Rejoins the game automatically if you get kicked',
     Default = false,
     Searchable = true,
 })
@@ -13458,6 +13496,23 @@ end ]]--
     return nil
 end ]]--
 
+function _104:FireSelfHitNotification(hpLost, arLost, attacker, weapon)
+    local mode = (Options.SelfHitNotifyMode and Options.SelfHitNotifyMode.Value) or { Both = true }
+    local showHP = mode.HP == true
+    local showArmor = mode.Armor == true
+
+    local dmgText = ""
+    if hpLost > 0.5 and showHP then dmgText = dmgText .. string.format("%d HP ", math.floor(hpLost)) end
+    if arLost > 0.5 and showArmor then dmgText = dmgText .. string.format("%d Armor ", math.floor(arLost)) end
+
+    local msg = string.format("Hit for %s by %s", dmgText, attacker)
+    if weapon ~= "" and weapon ~= "Unknown" then
+        msg = msg .. " using " .. weapon
+    end
+
+    pcall(function() Library:Notify(msg, 3) end)
+end
+
 function _104:CheckHitNotifications()
     local notifOn = Toggles.HitNotifications and Toggles.HitNotifications.Value
     local selfNotifyOn = Toggles.SelfHitNotifications and Toggles.SelfHitNotifications.Value
@@ -13485,25 +13540,25 @@ function _104:CheckHitNotifications()
                 local arLost = self.selfHitLastArmor - myArmor
                 
                 if hpLost > 0.5 or arLost > 0.5 then
-                    local mode = (Options.SelfHitNotifyMode and Options.SelfHitNotifyMode.Value) or { Both = true }
-                    local showHP = mode.HP == true
-                    local showArmor = mode.Armor == true
+                    self.pendingHit = { hp = hpLost, ar = arLost, timestamp = tick() }
 
-                    local dmgText = ""
-                    if hpLost > 0.5 and showHP then dmgText = dmgText .. string.format("%d HP ", math.floor(hpLost)) end
-                    if arLost > 0.5 and showArmor then dmgText = dmgText .. string.format("%d Armor ", math.floor(arLost)) end
-
-                    local attacker = self.lastAttackerName or "Unknown"
-                    local weapon = self.lastWeaponName or ""
-
-                    local msg = string.format("Hit for %s by %s", dmgText, attacker)
-                    if weapon ~= "" and weapon ~= "Unknown" then
-                        msg = msg .. " using " .. weapon
+                    if not self.lastAttackerName or self.lastAttackerName == "Unknown" then
+                        task.spawn(function()
+                            task.wait(0.15)
+                            if self.pendingHit then
+                                local p = self.pendingHit
+                                self.pendingHit = nil
+                                self:FireSelfHitNotification(p.hp, p.ar, "Unknown", "")
+                            end
+                        end)
+                    else
+                        local atk = self.lastAttackerName
+                        local wep = self.lastWeaponName or ""
+                        self.pendingHit = nil
+                        self:FireSelfHitNotification(hpLost, arLost, atk, wep)
+                        self.lastAttackerName = nil
+                        self.lastWeaponName = nil
                     end
-
-                    pcall(function() Library:Notify(msg, 3) end)
-                    self.lastAttackerName = nil
-                    self.lastWeaponName = nil
                 end
                 
                 self.selfHitLastHealth = myHealth
@@ -19656,6 +19711,7 @@ end
 
 AFKToggle = _78:AddToggle('AlwaysAFK', {
     Text = 'Always AFK',
+    Tooltip = 'Forces your status to always show as AFK',
     Default = false,
     Searchable = true,
 })
@@ -23047,32 +23103,65 @@ _52.Heartbeat:Connect(function()
     end
 end)
 
-task.spawn(function()
-    RS = game:GetService("ReplicatedStorage")
-    MainRemotes = RS:WaitForChild("MainRemotes", 10)
-    MainEvent = MainRemotes and MainRemotes:FindFirstChild("MainRemoteEvent")
+RS = game:GetService("ReplicatedStorage")
+
+function zX9_HandleIncomingBullet(...)
+    local args = {...}
+    local msg = args[1]
     
+    if msg == "ClientBullet" or msg == "Bullet" or msg == "Hit" or msg == "Damage" or msg == "ClientHit" then
+        local attackerChar = args[2]
+        local tool = args[3]
+
+        if attackerChar and attackerChar:IsA("Model") then
+            local attackerPlayer = game:GetService("Players"):GetPlayerFromCharacter(attackerChar)
+            if attackerPlayer then
+                _104.lastAttackerName = attackerPlayer.DisplayName .. " (" .. attackerPlayer.Name .. ")"
+            else
+                _104.lastAttackerName = attackerChar.Name
+            end
+        end
+
+        if tool and tool:IsA("BasePart") and tool.Parent and tool.Parent:IsA("Tool") then
+            _104.lastWeaponName = tool.Parent.Name
+        end
+    end
+end
+
+task.spawn(function()
+    local MainRemotes = RS:WaitForChild("MainRemotes", 10)
+    local MainEvent = MainRemotes and MainRemotes:FindFirstChild("MainRemoteEvent")
     if MainEvent then
-        MainEvent.OnClientEvent:Connect(function(...)
-            local args = {...}
-            if args[1] == "ClientBullet" then
-                local attackerChar = args[2]
-                local tool = args[3]
+        MainEvent.OnClientEvent:Connect(zX9_HandleIncomingBullet)
+    end
 
-                if attackerChar and attackerChar:IsA("Model") then
-                    local attackerPlayer = game:GetService("Players"):GetPlayerFromCharacter(attackerChar)
-                    if attackerPlayer then
-                        _104.lastAttackerName = attackerPlayer.DisplayName .. " (" .. attackerPlayer.Name .. ")"
-                    else
-                        _104.lastAttackerName = attackerChar.Name
-                    end
-                end
+    local GameRemotes = RS:WaitForChild("GameRemotes", 10)
+    local MainGameEvent = GameRemotes and GameRemotes:FindFirstChild("MainGameEvent")
+    if MainGameEvent then
+        MainGameEvent.OnClientEvent:Connect(zX9_HandleIncomingBullet)
+    end
 
-                if tool and tool:IsA("BasePart") and tool.Parent and tool.Parent:IsA("Tool") then
-                    _104.lastWeaponName = tool.Parent.Name
+    local Remotes = RS:WaitForChild("Remotes", 10)
+    local CombatEvent = Remotes and Remotes:FindFirstChild("CombatEvent")
+    if CombatEvent then
+        CombatEvent.OnClientEvent:Connect(zX9_HandleIncomingBullet)
+    end
+
+    local Events = RS:WaitForChild("Events", 10)
+    local MainServerEvent = Events and Events:FindFirstChild("MainServerEvent")
+    if MainServerEvent then
+        MainServerEvent.OnClientEvent:Connect(zX9_HandleIncomingBullet)
+    end
+
+    for _, obj in ipairs(RS:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("UnreliableRemoteEvent") then
+            if obj ~= MainEvent and obj ~= MainGameEvent and obj ~= CombatEvent and obj ~= MainServerEvent then
+                local name = obj.Name:lower()
+                if name:find("main") or name:find("combat") or name:find("weapon") or name:find("shoot") or name:find("hit") or name:find("damage") or name:find("bullet") then
+                    obj.OnClientEvent:Connect(zX9_HandleIncomingBullet)
                 end
             end
-        end)
+        end
     end
 end)
 
@@ -23090,6 +23179,8 @@ zX9_InstantKillState = {
     Busy          = false,
     Running       = true,
     Remote        = nil,
+    OverrideRange = false,
+    CustomRange   = 500,
 }
 _G.Combat = zX9_InstantKillState
 
@@ -23224,7 +23315,13 @@ function zX9_ExecuteFire(zX9_Gun, zX9_Part)
     zX9_Muzzle = zX9_PathIn(zX9_Gun, "Default", "Mesh", "Muzzle")
     if zX9_Muzzle then zX9_Origin = zX9_Muzzle.WorldPosition end
 
-    if (zX9_Origin - zX9_Part.Position).Magnitude > zX9_Range.Value then return end
+    -- Use the custom range if the override is enabled
+    local effectiveRange = zX9_Range.Value
+    if zX9_InstantKillState.OverrideRange then
+        effectiveRange = zX9_InstantKillState.CustomRange
+    end
+
+    if (zX9_Origin - zX9_Part.Position).Magnitude > effectiveRange then return end
     if not zX9_HasClearShot(zX9_Origin, zX9_Part) then return end
 
     zX9_Packed = zX9_BuildPayload(zX9_Part, zX9_InstantKillState.Bullets)
@@ -23234,7 +23331,7 @@ function zX9_ExecuteFire(zX9_Gun, zX9_Part)
         if zX9_Ammo and zX9_Ammo.Value <= 0 then break end
         for _ = 1, 2 do
             pcall(function()
-                zX9_Remote:FireServer("ShootGun", zX9_Handle, zX9_Origin, zX9_Packed, nil, nil, nil, zX9_Range.Value, zX9_Damage.Value)
+                zX9_Remote:FireServer("ShootGun", zX9_Handle, zX9_Origin, zX9_Packed, nil, nil, nil, effectiveRange, zX9_Damage.Value)
             end)
         end
     end
@@ -23285,14 +23382,14 @@ pcall(function()
     zX9_CombatGroup:AddToggle("AutoFireEnabled", {
         Text = "Instant Kill",
         Default = false,
-        Tooltip = "Fires at the current aim target",
+    Tooltip = "Fires at the current aim target",
         Searchable = true,
     })
 
     zX9_CombatGroup:AddToggle("SkipKOToggle", {
         Text = "K.O Check",
         Default = true,
-        Tooltip = "Do not shoot targets that are K.O or dead",
+    Tooltip = "Do not shoot targets that are K.O or dead",
     })
 
     zX9_CombatGroup:AddDropdown("KillAllGun", {
@@ -23311,14 +23408,28 @@ pcall(function()
         Text = "Burst Count",
         Default = 2,
         Min = 1, Max = 10, Rounding = 0,
-        Tooltip = "Bursts per attack cycle",
+    Tooltip = "Bursts per attack cycle",
     })
 
     zX9_CombatGroup:AddSlider("CombatBurstInterval", {
         Text = "Burst Interval (s)",
         Default = 0.5,
         Min = 0.01, Max = 2, Rounding = 2,
-        Tooltip = "Seconds between bursts (0.5 = two bursts per second)",
+    Tooltip = "Seconds between bursts (0.5 = two bursts per second)",
+    })
+
+    -- NEW: Override Range
+    zX9_CombatGroup:AddToggle("OverrideRangeToggle", {
+        Text = "Override Range",
+        Default = false,
+        Tooltip = "Force the remote to use a custom range instead of the gun's default",
+    })
+
+    zX9_CombatGroup:AddSlider("CustomRangeSlider", {
+        Text = "Custom Range",
+        Default = 500,
+        Min = 1, Max = 100000, Rounding = 0,
+        Tooltip = "The maximum distance the bullet will travel",
     })
 
     Toggles.AutoFireEnabled:OnChanged(function(v) zX9_InstantKillState.Auto = v end)
@@ -23327,6 +23438,10 @@ pcall(function()
     Options.KillAllBullets:OnChanged(function(v) zX9_InstantKillState.Bullets = math.floor(v) end)
     Options.CombatBurst:OnChanged(function(v) zX9_InstantKillState.Burst = math.floor(v) end)
     Options.CombatBurstInterval:OnChanged(function(v) zX9_InstantKillState.BurstInterval = v end)
+    
+    -- NEW: Range Wiring
+    Toggles.OverrideRangeToggle:OnChanged(function(v) zX9_InstantKillState.OverrideRange = v end)
+    Options.CustomRangeSlider:OnChanged(function(v) zX9_InstantKillState.CustomRange = v end)
 
     if Library and Library.OnUnload then
         Library:OnUnload(zX9_CombatStop)
